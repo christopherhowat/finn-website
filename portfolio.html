@@ -33,7 +33,11 @@
         <div class="portfolio-minimap__tracker" id="minimapTracker"></div>
     </nav>
 
-    <div class="portfolio-stage" id="portfolioStage">
+    <!-- Ghost div: sits in normal document flow to create scroll height -->
+    <div id="portfolioGhost" class="portfolio-ghost"></div>
+
+    <!-- Fixed stage: frames live here, driven by window.scrollY -->
+    <div class="portfolio-stage">
         <div class="portfolio-track" id="portfolioTrack">
             <article class="portfolio-frame">
                 <figure class="portfolio-frame__figure">
@@ -69,23 +73,97 @@
     </div>
 
     <script>
-        const stage   = document.getElementById('portfolioStage');
-        const tracker = document.getElementById('minimapTracker');
-        const frames  = Array.from(document.querySelectorAll('.portfolio-frame'));
-        const N       = frames.length;
+    (function () {
+        'use strict';
 
-        // Minimap: 20 lines × 1px wide, 9px gap, 30px tracker → max travel = 161px
-        const MINIMAP_TRAVEL = 20 * 1 + 19 * 9 - 30;
+        // Restore scroll to top, like rauno does
+        window.history.scrollRestoration = 'manual';
+        document.documentElement.scrollTo(0, 0);
 
-        function updateMinimap() {
-            const max  = stage.scrollWidth - stage.clientWidth;
-            const prog = max > 0 ? stage.scrollLeft / max : 0;
-            tracker.style.transform = `translateX(${prog * MINIMAP_TRAVEL}px)`;
-            tracker.dataset.active  = stage.scrollLeft > 2 ? 'true' : 'false';
+        var ghost   = document.getElementById('portfolioGhost');
+        var track   = document.getElementById('portfolioTrack');
+        var tracker = document.getElementById('minimapTracker');
+        var frames  = Array.from(document.querySelectorAll('.portfolio-frame'));
+        var N       = frames.length;
+
+        // Minimap: 20 lines × 1px, 9px gap, 30px tracker → 161px travel
+        var MINIMAP_TRAVEL = 20 * 1 + 19 * 9 - 30;
+
+        var STEP, SCROLL_RANGE;
+        var displayX = 0;
+        var rafId    = null;
+        var snapping = false;
+        var snapTimer;
+
+        function setup() {
+            var frameW = frames[0].offsetWidth;
+            var gap    = parseFloat(getComputedStyle(track).columnGap) || 0;
+            STEP         = frameW + gap;
+            SCROLL_RANGE = (N - 1) * STEP;
+
+            // Centre first frame: push track's left edge to (viewport - frameW) / 2
+            track.style.marginLeft = ((window.innerWidth - frameW) / 2) + 'px';
+
+            // Ghost creates the vertical scroll range
+            ghost.style.height = (window.innerHeight + SCROLL_RANGE) + 'px';
+
+            // Sync display position to current (reset) scroll
+            displayX = -window.scrollY;
+            track.style.transform = 'translateX(' + displayX + 'px)';
         }
 
-        stage.addEventListener('scroll', updateMinimap, { passive: true });
-        updateMinimap();
+        function updateMinimap() {
+            var progress = SCROLL_RANGE > 0
+                ? Math.min(Math.max(-displayX / SCROLL_RANGE, 0), 1)
+                : 0;
+            tracker.style.transform = 'translateX(' + (progress * MINIMAP_TRAVEL) + 'px)';
+            tracker.dataset.active  = progress > 0.005 ? 'true' : 'false';
+        }
+
+        // Smooth follow: lerp displayX toward -scrollY each frame
+        function render() {
+            var target = -window.scrollY;
+            var diff   = target - displayX;
+
+            if (Math.abs(diff) < 0.3) {
+                displayX = target;
+                track.style.transform = 'translateX(' + displayX + 'px)';
+                updateMinimap();
+                rafId = null;
+                return;
+            }
+
+            displayX += diff * 0.1;
+            track.style.transform = 'translateX(' + displayX + 'px)';
+            updateMinimap();
+            rafId = requestAnimationFrame(render);
+        }
+
+        function snapToNearest() {
+            if (!STEP) return;
+            var nearest = Math.round(window.scrollY / STEP);
+            var targetY = Math.min(Math.max(nearest * STEP, 0), SCROLL_RANGE);
+            if (Math.abs(window.scrollY - targetY) > 2) {
+                snapping = true;
+                window.scrollTo({ top: targetY, behavior: 'smooth' });
+                setTimeout(function () { snapping = false; }, 800);
+            }
+        }
+
+        window.addEventListener('scroll', function () {
+            if (rafId) cancelAnimationFrame(rafId);
+            rafId = requestAnimationFrame(render);
+
+            if (!snapping) {
+                clearTimeout(snapTimer);
+                snapTimer = setTimeout(snapToNearest, 150);
+            }
+        }, { passive: true });
+
+        window.addEventListener('resize', setup);
+
+        setup();
+    }());
     </script>
 </body>
 </html>
