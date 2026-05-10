@@ -233,6 +233,7 @@ a {
     font-size: 62px;
     font-weight: normal;
     font-style: italic;
+    line-height: 1;
     z-index: 1;
     grid-row: 3;
     margin-block-end: -0.9rem;
@@ -265,7 +266,7 @@ a {
 
 .home-hero__title .segment--third {
     font-family: "Louize Display", serif;
-    font-size: 17.5vw;
+    font-size: 13vw;
     font-weight: normal;
     line-height: .78;
     grid-row: 4;
