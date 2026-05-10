@@ -151,10 +151,12 @@
             STEP         = frameW + gap;
             // Last frame is centred when scrollY = MIN_SCALE * (N-1) * STEP
             SCROLL_RANGE = (N - 1) * STEP * MIN_SCALE;
-            // Derive the zoom-out rate from SCROLL_RANGE so scale hits MIN_SCALE
-            // exactly when the last frame is centred — hardcoding 0.0001 broke
-            // on smaller frames (mobile) where SCROLL_RANGE is only ~800px.
-            ZOOM_K = SCROLL_RANGE > 0 ? (naturalScale - MIN_SCALE) / SCROLL_RANGE : 0;
+            // Zoom out over the first STEP of scrolling, then clamp at MIN_SCALE.
+            // Using SCROLL_RANGE as denominator spread the zoom across all frames
+            // (too slow) and caused spring-lag at the end. STEP as denominator
+            // means zoom is done by the time the second frame arrives, so scaleD
+            // is fully settled at MIN_SCALE for all subsequent frames.
+            ZOOM_K = STEP > 0 ? (naturalScale - MIN_SCALE) / STEP : 0;
 
             track.style.marginLeft = ((window.innerWidth - frameW) / 2) + 'px';
 
