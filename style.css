@@ -571,41 +571,35 @@ a {
     border-color: #FFFF02;
 }
 
-.portfolio-scroll {
+.portfolio-stage {
+    position: fixed;
+    inset: 0;
     display: flex;
     align-items: center;
-    height: 100vh;
-    overflow-x: scroll;
-    overflow-y: hidden;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: none;
-    padding-inline: 15vw;
-    gap: 4vw;
-    box-sizing: border-box;
+    justify-content: center;
+    overflow: hidden;
 }
 
-.portfolio-scroll::-webkit-scrollbar {
-    display: none;
+.portfolio-track {
+    display: flex;
+    align-items: center;
+    gap: 4vw;
+    transition: transform 0.55s cubic-bezier(0.645, 0.045, 0.355, 1);
+    will-change: transform;
 }
 
 .portfolio-frame {
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
-    width: 70vw;
-    height: 78vh;
-    scroll-snap-align: center;
+    width: 65vw;
+    height: 75vh;
 }
 
 @media screen and (max-width: 600px) {
-    .portfolio-scroll {
-        padding-inline: 5vw;
-        gap: 5vw;
-    }
-
     .portfolio-frame {
-        width: 90vw;
-        height: 75vh;
+        width: 88vw;
+        height: 70vh;
     }
 }
 

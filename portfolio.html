@@ -33,80 +33,88 @@
         <div class="portfolio-minimap__tracker" id="minimapTracker"></div>
     </nav>
 
-    <div class="portfolio-scroll" id="portfolioScroll">
-        <article class="portfolio-frame">
-            <figure class="portfolio-frame__figure">
-                <img src="hero.jpg" alt="Series I">
-            </figure>
-            <p class="portfolio-frame__title">Series I</p>
-        </article>
-        <article class="portfolio-frame">
-            <figure class="portfolio-frame__figure">
-                <img src="hero.jpg" alt="Series II">
-            </figure>
-            <p class="portfolio-frame__title">Series II</p>
-        </article>
-        <article class="portfolio-frame">
-            <figure class="portfolio-frame__figure">
-                <img src="hero.jpg" alt="Portraits">
-            </figure>
-            <p class="portfolio-frame__title">Portraits</p>
-        </article>
-        <article class="portfolio-frame">
-            <figure class="portfolio-frame__figure">
-                <img src="hero.jpg" alt="Still Life">
-            </figure>
-            <p class="portfolio-frame__title">Still Life</p>
-        </article>
-        <article class="portfolio-frame">
-            <figure class="portfolio-frame__figure">
-                <img src="hero.jpg" alt="Documentary">
-            </figure>
-            <p class="portfolio-frame__title">Documentary</p>
-        </article>
+    <!-- Fixed stage: frames live here -->
+    <div class="portfolio-stage" id="portfolioStage">
+        <div class="portfolio-track" id="portfolioTrack">
+            <article class="portfolio-frame">
+                <figure class="portfolio-frame__figure">
+                    <img src="hero.jpg" alt="Series I">
+                </figure>
+                <p class="portfolio-frame__title">Series I</p>
+            </article>
+            <article class="portfolio-frame">
+                <figure class="portfolio-frame__figure">
+                    <img src="hero.jpg" alt="Series II">
+                </figure>
+                <p class="portfolio-frame__title">Series II</p>
+            </article>
+            <article class="portfolio-frame">
+                <figure class="portfolio-frame__figure">
+                    <img src="hero.jpg" alt="Portraits">
+                </figure>
+                <p class="portfolio-frame__title">Portraits</p>
+            </article>
+            <article class="portfolio-frame">
+                <figure class="portfolio-frame__figure">
+                    <img src="hero.jpg" alt="Still Life">
+                </figure>
+                <p class="portfolio-frame__title">Still Life</p>
+            </article>
+            <article class="portfolio-frame">
+                <figure class="portfolio-frame__figure">
+                    <img src="hero.jpg" alt="Documentary">
+                </figure>
+                <p class="portfolio-frame__title">Documentary</p>
+            </article>
+        </div>
     </div>
 
     <script>
-        const scroll = document.getElementById('portfolioScroll');
+        const track = document.getElementById('portfolioTrack');
         const tracker = document.getElementById('minimapTracker');
-        const frames = document.querySelectorAll('.portfolio-frame');
+        const frames = Array.from(document.querySelectorAll('.portfolio-frame'));
+        const total = frames.length;
 
-        let currentIndex = 0;
-        let isAnimating = false;
+        let current = 0;
+        let locked = false;
 
-        function goTo(index) {
-            index = Math.max(0, Math.min(frames.length - 1, index));
-            if (index === currentIndex && isAnimating) return;
-            currentIndex = index;
-            isAnimating = true;
-            frames[currentIndex].scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-            setTimeout(() => isAnimating = false, 700);
-            updateMinimap();
+        // Minimap constants
+        const maxTravel = 20 * 1 + 19 * 9 - 30; // 161px
+
+        function goTo(i) {
+            i = Math.max(0, Math.min(total - 1, i));
+            if (locked) return;
+            current = i;
+            locked = true;
+
+            // Translate the track so frame i is centred
+            const frameW = frames[0].offsetWidth;
+            const gap = parseInt(getComputedStyle(track).gap) || 0;
+            const step = frameW + gap;
+            const offset = -(i * step);
+            track.style.transform = `translateX(${offset}px)`;
+
+            // Minimap
+            const progress = i / (total - 1);
+            tracker.style.transform = `translateX(${progress * maxTravel}px)`;
+            tracker.dataset.active = i > 0 ? 'true' : 'false';
+
+            setTimeout(() => locked = false, 600);
         }
 
+        // Mouse wheel
         window.addEventListener('wheel', (e) => {
             e.preventDefault();
-            const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
-            if (delta > 0) goTo(currentIndex + 1);
-            else if (delta < 0) goTo(currentIndex - 1);
+            const d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+            if (d > 5) goTo(current + 1);
+            else if (d < -5) goTo(current - 1);
         }, { passive: false });
 
-        // Keyboard arrow support
+        // Arrow keys
         window.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') goTo(currentIndex + 1);
-            if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') goTo(currentIndex - 1);
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); goTo(current + 1); }
+            if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   { e.preventDefault(); goTo(current - 1); }
         });
-
-        // Minimap tracker
-        const lineCount = 20;
-        const trackerWidth = 30;
-        const maxTravel = lineCount * 1 + (lineCount - 1) * 9 - trackerWidth; // 161px
-
-        function updateMinimap() {
-            const progress = currentIndex / (frames.length - 1);
-            tracker.style.transform = `translateX(${progress * maxTravel}px)`;
-            tracker.dataset.active = currentIndex > 0 ? 'true' : 'false';
-        }
     </script>
 </body>
 </html>
