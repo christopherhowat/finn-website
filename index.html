@@ -55,5 +55,34 @@
     <footer class="site-footer">
         <p>The personal site and portfolio of photographer Finn Delaney.</p>
     </footer>
+    <script>
+    (function () {
+        // On mobile the segment--first ("FINN DELANEY") is rotated 90deg.
+        // getBoundingClientRect() returns the visual bounding box including
+        // that transform, so .bottom gives the true bottom of the "Y" glyph.
+        // We add a margin-block-start to segment--third so its bottom matches.
+        function alignThird() {
+            if (window.innerWidth >= 600) return;
+            var first = document.querySelector('.segment--first');
+            var third = document.querySelector('.segment--third');
+            if (!first || !third) return;
+
+            third.style.marginBlockStart = '';
+
+            var firstBottom = first.getBoundingClientRect().bottom;
+            var thirdBottom = third.getBoundingClientRect().bottom;
+            var diff = firstBottom - thirdBottom;
+
+            if (Math.abs(diff) > 0.5) {
+                third.style.marginBlockStart = diff + 'px';
+            }
+        }
+
+        document.fonts.ready.then(function () {
+            alignThird();
+            window.addEventListener('resize', alignThird);
+        });
+    }());
+    </script>
 </body>
 </html>
