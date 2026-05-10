@@ -70,12 +70,11 @@
         const scroll = document.getElementById('portfolioScroll');
         const tracker = document.getElementById('minimapTracker');
 
-        // Convert vertical wheel to horizontal scroll
-        scroll.addEventListener('wheel', (e) => {
-            if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-                e.preventDefault();
-                scroll.scrollLeft += e.deltaY;
-            }
+        // Listen on window so wheel works anywhere on the page
+        window.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+            scroll.scrollLeft += delta;
         }, { passive: false });
 
         // Slide minimap tracker

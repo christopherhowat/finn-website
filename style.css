@@ -516,6 +516,8 @@ a {
 
 .portfolio-page {
     background: var(--color-background);
+    overflow: hidden;
+    height: 100vh;
 }
 
 .portfolio-back {
