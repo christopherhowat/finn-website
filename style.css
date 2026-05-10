@@ -523,6 +523,16 @@ a {
     /* height set by JS */
 }
 
+.portfolio-cross {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    mix-blend-mode: difference;
+    pointer-events: none;
+    z-index: 100;
+}
+
 .portfolio-back {
     position: fixed;
     top: 1rem;
