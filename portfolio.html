@@ -6,8 +6,7 @@
     <title>Portfolio — Finn Delaney</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* Hide scrollbar on the window scroll — rauno does this too */
-        html { scrollbar-width: none; }
+        html { scrollbar-width: none; overscroll-behavior: none; }
         html::-webkit-scrollbar { display: none; }
     </style>
 </head>
@@ -116,109 +115,79 @@
 
         var STEP = 0, SCROLL_RANGE = 0, ZOOM_K = 0;
 
-        // rauno: useMediaQuery("(pointer: coarse)") to detect touch/mobile
         var isCoarse = window.matchMedia('(pointer: coarse)').matches;
 
-        // D = useSpring(1, { stiffness:500, damping:50 })
-        // d.current = naturalScale (max allowed scale)
         var MIN_SCALE    = 0.6;
         var naturalScale = 1;
-        var scaleD       = 1;          // D — current animated value
-        var scaleDVel    = 0;          // spring velocity
-        var scaleTarget  = 1;          // what D is springing toward
-        var scaleRaf     = null;
+        var scaleD       = 1;
+        var scaleDVel    = 0;
+        var scaleTarget  = 1;
         var K_SCALE = 500, C_SCALE = 50;
 
         function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
-        // --- Setup ---
         function setup() {
-            // On desktop: clamp(min(innerWidth/1300, innerHeight/1020), [0.2, 1])
-            // On mobile (coarse pointer): start at 1.0 so it zooms out to MIN_SCALE
-            // as the user scrolls, giving the same zoom-out feel as desktop
             naturalScale = isCoarse
                 ? 1.0
                 : clamp(Math.min(window.innerWidth / 1300, window.innerHeight / 1020), 0.2, 1);
-            // rauno: 0.6 !== D.get() && D.jump(e)
-            if (Math.abs(scaleD - MIN_SCALE) > 0.001) {
-                scaleD      = naturalScale;
-                scaleDVel   = 0;
-                scaleTarget = naturalScale;
-            }
+
+            scaleD      = naturalScale;
+            scaleDVel   = 0;
+            scaleTarget = naturalScale;
 
             var frameW = frameEls[0].offsetWidth;
             var gap    = parseFloat(getComputedStyle(track).columnGap) || 0;
             STEP         = frameW + gap;
-            // Last frame is centred when scrollY = MIN_SCALE * (N-1) * STEP
             SCROLL_RANGE = (N - 1) * STEP * MIN_SCALE;
-            // Zoom out over the first STEP of scrolling, then clamp at MIN_SCALE.
-            // Using SCROLL_RANGE as denominator spread the zoom across all frames
-            // (too slow) and caused spring-lag at the end. STEP as denominator
-            // means zoom is done by the time the second frame arrives, so scaleD
-            // is fully settled at MIN_SCALE for all subsequent frames.
-            ZOOM_K = STEP > 0 ? (naturalScale - MIN_SCALE) / STEP : 0;
+            ZOOM_K       = STEP > 0 ? (naturalScale - MIN_SCALE) / STEP : 0;
 
             track.style.marginLeft = ((window.innerWidth - frameW) / 2) + 'px';
 
-            // ghost: width AND height = calc(100v_ + v) — exactly rauno
-            ghost.style.width  = 'calc(100vw + ' + SCROLL_RANGE + 'px)';
+            ghost.style.width  = '100vw';
             ghost.style.height = 'calc(100vh + ' + SCROLL_RANGE + 'px)';
-
-            apply(window.scrollY);
         }
 
         function apply(scrollY) {
-            // style={{ x: S, scale: D }}  where S = -scrollY (no lag)
+            // Clamp to prevent overscroll artefacts on iOS rubber-banding
+            var s = clamp(scrollY, 0, SCROLL_RANGE);
+            // translate3d forces GPU compositing for smoother mobile rendering
             frames.style.transform =
-                'translateX(' + (-scrollY) + 'px) scale(' + scaleD + ')';
+                'translate3d(' + (-s) + 'px,0,0) scale(' + scaleD + ')';
 
-            var progress = SCROLL_RANGE > 0
-                ? clamp(scrollY / SCROLL_RANGE, 0, 1) : 0;
+            var progress = SCROLL_RANGE > 0 ? s / SCROLL_RANGE : 0;
             tracker.style.transform =
                 'translateX(' + (progress * MINIMAP_TRAVEL) + 'px)';
         }
 
-        // Spring tick — animates scaleD toward scaleTarget
-        function tickScaleSpring() {
-            var dt    = 1 / 60;
-            var force = K_SCALE * (scaleTarget - scaleD) - C_SCALE * scaleDVel;
-            scaleDVel += force * dt;
-            scaleD    += scaleDVel * dt;
-
-            apply(window.scrollY);
-
-            if (Math.abs(scaleTarget - scaleD) < 0.0001 && Math.abs(scaleDVel) < 0.0001) {
-                scaleD   = scaleTarget;
-                scaleRaf = null;
-                apply(window.scrollY);
-            } else {
-                scaleRaf = requestAnimationFrame(tickScaleSpring);
-            }
-        }
-
-        // --- Scroll listener ---
-        // rauno X(e):
-        //   if e > 0: t = clamp(D.get() - 0.0001*e, [0.6, d.current])
-        //   else:     t = d.current
-        //   D.set(t)   ← spring toward t
-        //   S.set(-1*e) ← direct, no lag
-        window.addEventListener('scroll', function () {
+        // Single rAF loop drives everything — polling scrollY each frame keeps
+        // translation in sync with the display refresh regardless of when the
+        // browser fires scroll events (iOS fires them in bursts during momentum).
+        function tick() {
             var scrollY = window.scrollY;
 
-            if (scrollY > 0) {
-                scaleTarget = clamp(naturalScale - ZOOM_K * scrollY, MIN_SCALE, naturalScale);
-            } else {
-                scaleTarget = naturalScale;
+            // Update scale target
+            scaleTarget = scrollY > 0
+                ? clamp(naturalScale - ZOOM_K * scrollY, MIN_SCALE, naturalScale)
+                : naturalScale;
+
+            // Advance spring
+            var force = K_SCALE * (scaleTarget - scaleD) - C_SCALE * scaleDVel;
+            scaleDVel += force / 60;
+            scaleD    += scaleDVel / 60;
+
+            if (Math.abs(scaleTarget - scaleD) < 0.0001 && Math.abs(scaleDVel) < 0.0001) {
+                scaleD    = scaleTarget;
+                scaleDVel = 0;
             }
 
-            if (!scaleRaf) scaleRaf = requestAnimationFrame(tickScaleSpring);
-
             apply(scrollY);
-        }, { passive: true });
+            requestAnimationFrame(tick);
+        }
 
         window.addEventListener('resize', setup);
 
         setup();
+        requestAnimationFrame(tick);
     }());
     </script>
 </body>
