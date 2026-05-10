@@ -33,7 +33,6 @@
         <div class="portfolio-minimap__tracker" id="minimapTracker"></div>
     </nav>
 
-    <!-- Fixed stage: frames live here -->
     <div class="portfolio-stage" id="portfolioStage">
         <div class="portfolio-track" id="portfolioTrack">
             <article class="portfolio-frame">
@@ -70,51 +69,23 @@
     </div>
 
     <script>
-        const track = document.getElementById('portfolioTrack');
+        const stage   = document.getElementById('portfolioStage');
         const tracker = document.getElementById('minimapTracker');
-        const frames = Array.from(document.querySelectorAll('.portfolio-frame'));
-        const total = frames.length;
+        const frames  = Array.from(document.querySelectorAll('.portfolio-frame'));
+        const N       = frames.length;
 
-        let current = 0;
-        let locked = false;
+        // Minimap: 20 lines × 1px wide, 9px gap, 30px tracker → max travel = 161px
+        const MINIMAP_TRAVEL = 20 * 1 + 19 * 9 - 30;
 
-        // Minimap constants
-        const maxTravel = 20 * 1 + 19 * 9 - 30; // 161px
-
-        function goTo(i) {
-            i = Math.max(0, Math.min(total - 1, i));
-            if (locked) return;
-            current = i;
-            locked = true;
-
-            // Translate the track so frame i is centred
-            const frameW = frames[0].offsetWidth;
-            const gap = parseInt(getComputedStyle(track).gap) || 0;
-            const step = frameW + gap;
-            const offset = -(i * step);
-            track.style.transform = `translateX(${offset}px)`;
-
-            // Minimap
-            const progress = i / (total - 1);
-            tracker.style.transform = `translateX(${progress * maxTravel}px)`;
-            tracker.dataset.active = i > 0 ? 'true' : 'false';
-
-            setTimeout(() => locked = false, 600);
+        function updateMinimap() {
+            const max  = stage.scrollWidth - stage.clientWidth;
+            const prog = max > 0 ? stage.scrollLeft / max : 0;
+            tracker.style.transform = `translateX(${prog * MINIMAP_TRAVEL}px)`;
+            tracker.dataset.active  = stage.scrollLeft > 2 ? 'true' : 'false';
         }
 
-        // Mouse wheel
-        window.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            const d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
-            if (d > 5) goTo(current + 1);
-            else if (d < -5) goTo(current - 1);
-        }, { passive: false });
-
-        // Arrow keys
-        window.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); goTo(current + 1); }
-            if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   { e.preventDefault(); goTo(current - 1); }
-        });
+        stage.addEventListener('scroll', updateMinimap, { passive: true });
+        updateMinimap();
     </script>
 </body>
 </html>

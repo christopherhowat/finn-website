@@ -518,6 +518,7 @@ a {
     background: var(--color-background);
     overflow: hidden;
     height: 100vh;
+    height: 100dvh;
 }
 
 .portfolio-back {
@@ -574,18 +575,23 @@ a {
 .portfolio-stage {
     position: fixed;
     inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
+    overflow-x: scroll;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.portfolio-stage::-webkit-scrollbar {
+    display: none;
 }
 
 .portfolio-track {
     display: flex;
     align-items: center;
+    height: 100%;
     gap: 4vw;
-    transition: transform 0.55s cubic-bezier(0.645, 0.045, 0.355, 1);
-    will-change: transform;
+    padding-inline: 17.5vw;
 }
 
 .portfolio-frame {
@@ -594,12 +600,17 @@ a {
     flex-shrink: 0;
     width: 65vw;
     height: 75vh;
+    scroll-snap-align: center;
 }
 
 @media screen and (max-width: 600px) {
     .portfolio-frame {
         width: 88vw;
         height: 70vh;
+    }
+
+    .portfolio-track {
+        padding-inline: 6vw;
     }
 }
 
