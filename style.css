@@ -103,7 +103,6 @@ img, picture, video {
 /* Base */
 
 body {
-    container-type: inline-size;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-family: "Neue Montreal", sans-serif;
@@ -129,7 +128,7 @@ a {
     overflow: hidden;
     grid-auto-flow: dense;
     column-gap: 1rem;
-    grid-template-columns: 28cqmin minmax(0, 1fr);
+    grid-template-columns: 28vw minmax(0, 1fr);
     grid-template-rows: auto 4rem repeat(4, auto);
     align-content: start;
     padding: 1rem;
@@ -181,7 +180,6 @@ a {
 
 .home-hero__title {
     position: relative;
-    z-index: -1;
     display: grid;
     grid-column: inherit;
     grid-row: 1 / span 5;
@@ -193,7 +191,7 @@ a {
 
 .home-hero__title .segment--first {
     font-family: "Manuka", sans-serif;
-    font-size: 37.6cqmin;
+    font-size: 37.6vw;
     font-weight: 400;
     line-height: .72;
     grid-column: 1;
