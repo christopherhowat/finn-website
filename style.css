@@ -569,10 +569,6 @@ a {
     transition: transform 150ms ease, background 150ms ease, border-color 150ms ease;
 }
 
-.portfolio-minimap__tracker[data-active="true"] {
-    background: #FFFF02;
-    border-color: #FFFF02;
-}
 
 .portfolio-stage {
     position: fixed;
