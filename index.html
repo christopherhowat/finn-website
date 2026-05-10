@@ -71,16 +71,30 @@
 
             var firstBottom = first.getBoundingClientRect().bottom;
             var thirdBottom = third.getBoundingClientRect().bottom;
-            var diff = firstBottom - thirdBottom;
+            // Only push down — never pull up (negative diff means font wasn't
+            // measured yet or layout is still settling; pulling up causes overlap).
+            var diff = Math.max(0, firstBottom - thirdBottom);
 
-            if (Math.abs(diff) > 0.5) {
+            if (diff > 0.5) {
                 third.style.marginBlockStart = diff + 'px';
             }
         }
 
+        function alignThirdAfterLayout() {
+            // Two rAF passes let the browser apply the custom font to layout
+            // before we measure, avoiding a stale fallback-font measurement.
+            requestAnimationFrame(function () {
+                requestAnimationFrame(alignThird);
+            });
+        }
+
         document.fonts.ready.then(function () {
-            alignThird();
-            window.addEventListener('resize', alignThird);
+            alignThirdAfterLayout();
+            window.addEventListener('resize', function () {
+                var third = document.querySelector('.segment--third');
+                if (third) third.style.marginBlockStart = '';
+                alignThirdAfterLayout();
+            });
         });
     }());
     </script>

@@ -201,8 +201,10 @@
             var scrollY = window.scrollY;
 
             if (scrollY > 0) {
-                // use scaleD (D.get()) as base — NOT naturalScale
-                scaleTarget = clamp(scaleD - 0.0001 * scrollY, MIN_SCALE, naturalScale);
+                // naturalScale - scrollY: deterministic from absolute position.
+                // Using scaleD as base caused zoom-in during fast scroll because
+                // the mid-spring value was an unstable accumulation base.
+                scaleTarget = clamp(naturalScale - 0.0001 * scrollY, MIN_SCALE, naturalScale);
             } else {
                 scaleTarget = naturalScale;
             }
