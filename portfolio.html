@@ -124,6 +124,21 @@
         var scaleTarget  = 1;
         var K_SCALE = 500, C_SCALE = 50;
 
+        // Stable scroll position tracked via events, not rAF polling.
+        // iOS can momentarily report window.scrollY = 0 (or near-0) mid-momentum
+        // while the real position is hundreds of pixels higher — reading it from
+        // rAF causes the sudden backward jump + zoom-in the user sees.
+        // We also cap backward movement to 300 px per event: no finger moves
+        // faster than ~150 px per scroll event, so anything larger is an
+        // iOS position-reset artifact and we discard it.
+        var stableScrollY = 0;
+        window.addEventListener('scroll', function () {
+            var raw = window.scrollY;
+            if (raw >= stableScrollY || stableScrollY - raw <= 300) {
+                stableScrollY = raw;
+            }
+        }, { passive: true });
+
         function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
         function setup() {
@@ -134,6 +149,7 @@
             scaleD      = naturalScale;
             scaleDVel   = 0;
             scaleTarget = naturalScale;
+            stableScrollY = 0;
 
             var frameW = frameEls[0].offsetWidth;
             var gap    = parseFloat(getComputedStyle(track).columnGap) || 0;
@@ -148,9 +164,7 @@
         }
 
         function apply(scrollY) {
-            // Clamp to prevent overscroll artefacts on iOS rubber-banding
             var s = clamp(scrollY, 0, SCROLL_RANGE);
-            // translate3d forces GPU compositing for smoother mobile rendering
             frames.style.transform =
                 'translate3d(' + (-s) + 'px,0,0) scale(' + scaleD + ')';
 
@@ -159,18 +173,13 @@
                 'translateX(' + (progress * MINIMAP_TRAVEL) + 'px)';
         }
 
-        // Single rAF loop drives everything — polling scrollY each frame keeps
-        // translation in sync with the display refresh regardless of when the
-        // browser fires scroll events (iOS fires them in bursts during momentum).
         function tick() {
-            var scrollY = window.scrollY;
+            var scrollY = stableScrollY;
 
-            // Update scale target
             scaleTarget = scrollY > 0
                 ? clamp(naturalScale - ZOOM_K * scrollY, MIN_SCALE, naturalScale)
                 : naturalScale;
 
-            // Advance spring
             var force = K_SCALE * (scaleTarget - scaleD) - C_SCALE * scaleDVel;
             scaleDVel += force / 60;
             scaleD    += scaleDVel / 60;
