@@ -124,20 +124,9 @@
         var scaleTarget  = 1;
         var K_SCALE = 500, C_SCALE = 50;
 
-        // Stable scroll position tracked via events, not rAF polling.
-        // iOS can momentarily report window.scrollY = 0 (or near-0) mid-momentum
-        // while the real position is hundreds of pixels higher — reading it from
-        // rAF causes the sudden backward jump + zoom-in the user sees.
-        // We also cap backward movement to 300 px per event: no finger moves
-        // faster than ~150 px per scroll event, so anything larger is an
-        // iOS position-reset artifact and we discard it.
-        var stableScrollY = 0;
-        window.addEventListener('scroll', function () {
-            var raw = window.scrollY;
-            if (raw >= stableScrollY || stableScrollY - raw <= 300) {
-                stableScrollY = raw;
-            }
-        }, { passive: true });
+        // Shared position driving both scale and translate.
+        // On mobile this is written by touch handlers; on desktop by scroll events.
+        var pos = 0;
 
         function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
@@ -149,7 +138,7 @@
             scaleD      = naturalScale;
             scaleDVel   = 0;
             scaleTarget = naturalScale;
-            stableScrollY = 0;
+            pos         = 0;
 
             var frameW = frameEls[0].offsetWidth;
             var gap    = parseFloat(getComputedStyle(track).columnGap) || 0;
@@ -159,42 +148,97 @@
 
             track.style.marginLeft = ((window.innerWidth - frameW) / 2) + 'px';
 
-            ghost.style.width  = '100vw';
-            ghost.style.height = 'calc(100vh + ' + SCROLL_RANGE + 'px)';
+            if (isCoarse) {
+                // Ghost div not needed — touch events drive pos directly.
+                ghost.style.display = 'none';
+                document.documentElement.style.overflow = 'hidden';
+                document.body.style.overflow = 'hidden';
+            } else {
+                ghost.style.width  = '100vw';
+                ghost.style.height = 'calc(100vh + ' + SCROLL_RANGE + 'px)';
+            }
         }
 
-        function apply(scrollY) {
-            var s = clamp(scrollY, 0, SCROLL_RANGE);
-            frames.style.transform =
-                'translate3d(' + (-s) + 'px,0,0) scale(' + scaleD + ')';
-
-            var progress = SCROLL_RANGE > 0 ? s / SCROLL_RANGE : 0;
-            tracker.style.transform =
-                'translateX(' + (progress * MINIMAP_TRAVEL) + 'px)';
-        }
-
-        function tick() {
-            var scrollY = stableScrollY;
-
-            scaleTarget = scrollY > 0
-                ? clamp(naturalScale - ZOOM_K * scrollY, MIN_SCALE, naturalScale)
+        function applySpring() {
+            scaleTarget = pos > 0
+                ? clamp(naturalScale - ZOOM_K * pos, MIN_SCALE, naturalScale)
                 : naturalScale;
 
             var force = K_SCALE * (scaleTarget - scaleD) - C_SCALE * scaleDVel;
             scaleDVel += force / 60;
             scaleD    += scaleDVel / 60;
-
             if (Math.abs(scaleTarget - scaleD) < 0.0001 && Math.abs(scaleDVel) < 0.0001) {
-                scaleD    = scaleTarget;
-                scaleDVel = 0;
+                scaleD = scaleTarget; scaleDVel = 0;
+            }
+        }
+
+        function applyTransform() {
+            var s = clamp(pos, 0, SCROLL_RANGE);
+            frames.style.transform = 'translate3d(' + (-s) + 'px,0,0) scale(' + scaleD + ')';
+            var progress = SCROLL_RANGE > 0 ? s / SCROLL_RANGE : 0;
+            tracker.style.transform = 'translateX(' + (progress * MINIMAP_TRAVEL) + 'px)';
+        }
+
+        // ── MOBILE: touch-driven, no window.scrollY ───────────────────────────
+        // iOS Safari's window.scrollY is unreliable during momentum — it can
+        // jump to 0 mid-fling. Driving pos from touch events directly avoids
+        // all native-scroll timing issues.
+        if (isCoarse) {
+            var touchX0 = 0, pos0 = 0;
+            var lastTouchX = 0, lastTouchTime = 0, velX = 0;
+            var touching = false;
+
+            window.addEventListener('touchstart', function (e) {
+                touching  = true;
+                velX      = 0;
+                touchX0   = e.touches[0].clientX;
+                pos0      = pos;
+                lastTouchX    = touchX0;
+                lastTouchTime = Date.now();
+            }, { passive: true });
+
+            window.addEventListener('touchmove', function (e) {
+                e.preventDefault(); // block native scroll entirely on this page
+                var x   = e.touches[0].clientX;
+                var now = Date.now();
+                var dt  = now - lastTouchTime;
+                if (dt > 0) velX = (lastTouchX - x) / dt; // px / ms, +ve = forward
+                lastTouchX    = x;
+                lastTouchTime = now;
+                pos = clamp(pos0 + (touchX0 - x), 0, SCROLL_RANGE);
+            }, { passive: false });
+
+            window.addEventListener('touchend', function () {
+                touching = false;
+                // velX carries momentum forward into the rAF loop
+            }, { passive: true });
+
+            function tick() {
+                if (!touching) {
+                    // Momentum with friction
+                    pos   = clamp(pos + velX * 16, 0, SCROLL_RANGE);
+                    velX *= 0.95;
+                    if (Math.abs(velX) < 0.005) velX = 0;
+                }
+                applySpring();
+                applyTransform();
+                requestAnimationFrame(tick);
             }
 
-            apply(scrollY);
-            requestAnimationFrame(tick);
+        // ── DESKTOP: scroll-driven ────────────────────────────────────────────
+        } else {
+            window.addEventListener('scroll', function () {
+                pos = window.scrollY;
+            }, { passive: true });
+
+            function tick() {
+                applySpring();
+                applyTransform();
+                requestAnimationFrame(tick);
+            }
         }
 
         window.addEventListener('resize', setup);
-
         setup();
         requestAnimationFrame(tick);
     }());
