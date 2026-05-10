@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Portfolio — Finn Delaney</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* Hide scrollbar on the window scroll — rauno does this too */
+        html { scrollbar-width: none; }
+        html::-webkit-scrollbar { display: none; }
+    </style>
 </head>
 <body class="portfolio-page">
     <a href="/" class="portfolio-back">← Finn Delaney</a>
@@ -134,7 +139,9 @@
             var frameW = frameEls[0].offsetWidth;
             var gap    = parseFloat(getComputedStyle(track).columnGap) || 0;
             STEP         = frameW + gap;
-            SCROLL_RANGE = (N - 1) * STEP;
+            // rauno uses t = min(naturalScale, 0.6) for scroll range calculation
+            // so the last frame is centred at max scrollY when scale = MIN_SCALE
+            SCROLL_RANGE = (N - 1) * STEP * MIN_SCALE;
 
             track.style.marginLeft = ((window.innerWidth - frameW) / 2) + 'px';
 
