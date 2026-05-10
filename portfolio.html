@@ -69,25 +69,44 @@
     <script>
         const scroll = document.getElementById('portfolioScroll');
         const tracker = document.getElementById('minimapTracker');
+        const frames = document.querySelectorAll('.portfolio-frame');
 
-        // Listen on window so wheel works anywhere on the page
+        let currentIndex = 0;
+        let isAnimating = false;
+
+        function goTo(index) {
+            index = Math.max(0, Math.min(frames.length - 1, index));
+            if (index === currentIndex && isAnimating) return;
+            currentIndex = index;
+            isAnimating = true;
+            frames[currentIndex].scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            setTimeout(() => isAnimating = false, 700);
+            updateMinimap();
+        }
+
         window.addEventListener('wheel', (e) => {
             e.preventDefault();
             const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
-            scroll.scrollLeft += delta;
+            if (delta > 0) goTo(currentIndex + 1);
+            else if (delta < 0) goTo(currentIndex - 1);
         }, { passive: false });
 
-        // Slide minimap tracker
+        // Keyboard arrow support
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') goTo(currentIndex + 1);
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') goTo(currentIndex - 1);
+        });
+
+        // Minimap tracker
         const lineCount = 20;
         const trackerWidth = 30;
-        const totalWidth = lineCount * 1 + (lineCount - 1) * 9; // 191px
-        const maxTravel = totalWidth - trackerWidth;
+        const maxTravel = lineCount * 1 + (lineCount - 1) * 9 - trackerWidth; // 161px
 
-        scroll.addEventListener('scroll', () => {
-            const progress = scroll.scrollLeft / (scroll.scrollWidth - scroll.offsetWidth);
+        function updateMinimap() {
+            const progress = currentIndex / (frames.length - 1);
             tracker.style.transform = `translateX(${progress * maxTravel}px)`;
-            tracker.dataset.active = scroll.scrollLeft > 0 ? 'true' : 'false';
-        }, { passive: true });
+            tracker.dataset.active = currentIndex > 0 ? 'true' : 'false';
+        }
     </script>
 </body>
 </html>
