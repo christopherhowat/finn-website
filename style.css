@@ -571,12 +571,15 @@ a {
 
 .portfolio-scroll {
     display: flex;
-    width: 100vw;
+    align-items: center;
     height: 100vh;
     overflow-x: scroll;
     overflow-y: hidden;
     scroll-snap-type: x mandatory;
     scrollbar-width: none;
+    padding-inline: 15vw;
+    gap: 4vw;
+    box-sizing: border-box;
 }
 
 .portfolio-scroll::-webkit-scrollbar {
@@ -587,10 +590,21 @@ a {
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
-    width: 100vw;
-    height: 100vh;
-    padding: 6rem 1.5rem 2rem;
-    scroll-snap-align: start;
+    width: 70vw;
+    height: 78vh;
+    scroll-snap-align: center;
+}
+
+@media screen and (max-width: 600px) {
+    .portfolio-scroll {
+        padding-inline: 5vw;
+        gap: 5vw;
+    }
+
+    .portfolio-frame {
+        width: 90vw;
+        height: 75vh;
+    }
 }
 
 .portfolio-frame__figure {
@@ -598,7 +612,7 @@ a {
     min-height: 0;
     margin: 0;
     overflow: hidden;
-    border-radius: .75rem;
+    border-radius: .5rem;
     border: 1px solid var(--color-border-light);
 }
 
@@ -609,9 +623,9 @@ a {
 }
 
 .portfolio-frame__title {
-    margin-block-start: .75rem;
-    font-size: .875rem;
-    letter-spacing: -0.01em;
+    margin-block-start: .625rem;
+    font-size: .75rem;
+    letter-spacing: 0.05em;
     color: var(--color-text-mid);
     text-transform: uppercase;
 }

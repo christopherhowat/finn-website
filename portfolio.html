@@ -70,17 +70,24 @@
         const scroll = document.getElementById('portfolioScroll');
         const tracker = document.getElementById('minimapTracker');
 
+        // Convert vertical wheel to horizontal scroll
+        scroll.addEventListener('wheel', (e) => {
+            if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                e.preventDefault();
+                scroll.scrollLeft += e.deltaY;
+            }
+        }, { passive: false });
+
+        // Slide minimap tracker
         const lineCount = 20;
-        const lineWidth = 1;
-        const lineGap = 9;
         const trackerWidth = 30;
-        const totalWidth = lineCount * lineWidth + (lineCount - 1) * lineGap;
+        const totalWidth = lineCount * 1 + (lineCount - 1) * 9; // 191px
         const maxTravel = totalWidth - trackerWidth;
 
         scroll.addEventListener('scroll', () => {
             const progress = scroll.scrollLeft / (scroll.scrollWidth - scroll.offsetWidth);
             tracker.style.transform = `translateX(${progress * maxTravel}px)`;
-            tracker.dataset.active = progress > 0 ? 'true' : 'false';
+            tracker.dataset.active = scroll.scrollLeft > 0 ? 'true' : 'false';
         }, { passive: true });
     </script>
 </body>
