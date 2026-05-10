@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div class="page-intro" id="pageIntro"></div>
     <section class="home-hero">
         <hgroup>
             <h1 class="home-hero__title">
@@ -55,6 +56,17 @@
     <footer class="site-footer">
         <p>The personal site and portfolio of photographer Finn Delaney.</p>
     </footer>
+    <script>
+    (function () {
+        var intro = document.getElementById('pageIntro');
+        if (intro) {
+            setTimeout(function () {
+                intro.classList.add('is-leaving');
+                setTimeout(function () { intro.parentNode && intro.parentNode.removeChild(intro); }, 1150);
+            }, 180);
+        }
+    }());
+    </script>
     <script>
     (function () {
         // On mobile the segment--first ("FINN DELANEY") is rotated 90deg.

@@ -11,6 +11,7 @@
     </style>
 </head>
 <body class="portfolio-page">
+    <div class="page-intro" id="pageIntro"></div>
     <a href="/" class="portfolio-back">← Finn Delaney</a>
 
     <nav class="portfolio-minimap" aria-label="Portfolio navigation">
@@ -95,6 +96,17 @@
         </div>
     </div>
 
+    <script>
+    (function () {
+        var intro = document.getElementById('pageIntro');
+        if (intro) {
+            setTimeout(function () {
+                intro.classList.add('is-leaving');
+                setTimeout(function () { intro.parentNode && intro.parentNode.removeChild(intro); }, 1150);
+            }, 180);
+        }
+    }());
+    </script>
     <script>
     (function () {
         'use strict';
