@@ -213,17 +213,20 @@
                 // velX carries momentum forward into the rAF loop
             }, { passive: true });
 
-            function tick() {
+            function tickMobile() {
                 if (!touching) {
-                    // Momentum with friction
                     pos   = clamp(pos + velX * 16, 0, SCROLL_RANGE);
                     velX *= 0.95;
                     if (Math.abs(velX) < 0.005) velX = 0;
                 }
                 applySpring();
                 applyTransform();
-                requestAnimationFrame(tick);
+                requestAnimationFrame(tickMobile);
             }
+
+            window.addEventListener('resize', setup);
+            setup();
+            requestAnimationFrame(tickMobile);
 
         // ── DESKTOP: scroll-driven ────────────────────────────────────────────
         } else {
@@ -231,16 +234,16 @@
                 pos = window.scrollY;
             }, { passive: true });
 
-            function tick() {
+            function tickDesktop() {
                 applySpring();
                 applyTransform();
-                requestAnimationFrame(tick);
+                requestAnimationFrame(tickDesktop);
             }
-        }
 
-        window.addEventListener('resize', setup);
-        setup();
-        requestAnimationFrame(tick);
+            window.addEventListener('resize', setup);
+            setup();
+            requestAnimationFrame(tickDesktop);
+        }
     }());
     </script>
 </body>
