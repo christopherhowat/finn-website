@@ -114,7 +114,7 @@
         // Minimap: 20 lines × 1px wide, 9px gap, 30px tracker → 161px max travel
         var MINIMAP_TRAVEL = 20 * 1 + 19 * 9 - 30;
 
-        var STEP = 0, SCROLL_RANGE = 0;
+        var STEP = 0, SCROLL_RANGE = 0, ZOOM_K = 0;
 
         // rauno: useMediaQuery("(pointer: coarse)") to detect touch/mobile
         var isCoarse = window.matchMedia('(pointer: coarse)').matches;
@@ -149,9 +149,12 @@
             var frameW = frameEls[0].offsetWidth;
             var gap    = parseFloat(getComputedStyle(track).columnGap) || 0;
             STEP         = frameW + gap;
-            // rauno uses t = min(naturalScale, 0.6) for scroll range calculation
-            // so the last frame is centred at max scrollY when scale = MIN_SCALE
+            // Last frame is centred when scrollY = MIN_SCALE * (N-1) * STEP
             SCROLL_RANGE = (N - 1) * STEP * MIN_SCALE;
+            // Derive the zoom-out rate from SCROLL_RANGE so scale hits MIN_SCALE
+            // exactly when the last frame is centred — hardcoding 0.0001 broke
+            // on smaller frames (mobile) where SCROLL_RANGE is only ~800px.
+            ZOOM_K = SCROLL_RANGE > 0 ? (naturalScale - MIN_SCALE) / SCROLL_RANGE : 0;
 
             track.style.marginLeft = ((window.innerWidth - frameW) / 2) + 'px';
 
@@ -201,10 +204,7 @@
             var scrollY = window.scrollY;
 
             if (scrollY > 0) {
-                // naturalScale - scrollY: deterministic from absolute position.
-                // Using scaleD as base caused zoom-in during fast scroll because
-                // the mid-spring value was an unstable accumulation base.
-                scaleTarget = clamp(naturalScale - 0.0001 * scrollY, MIN_SCALE, naturalScale);
+                scaleTarget = clamp(naturalScale - ZOOM_K * scrollY, MIN_SCALE, naturalScale);
             } else {
                 scaleTarget = naturalScale;
             }
