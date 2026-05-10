@@ -269,8 +269,10 @@ a {
     font-weight: normal;
     line-height: .78;
     grid-row: 4;
-    max-width: 4ch;
     text-transform: uppercase;
+    /* no max-width: Henry's words are ≤4 chars (NEW/DARK/WEB) so 4ch worked
+       for him; Finn's words are 6 chars (TAKING/PHOTOS) so we let the
+       column width handle wrapping naturally */
 }
 
 @media screen and (min-width: 600px) {
@@ -495,10 +497,6 @@ a {
 /* Footer */
 
 .site-footer {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
     padding: 1rem;
     font-size: 1.25rem;
     line-height: 1.1;
@@ -508,6 +506,10 @@ a {
 
 @media screen and (min-width: 900px) {
     .site-footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
         font-size: 1.5rem;
     }
 }
