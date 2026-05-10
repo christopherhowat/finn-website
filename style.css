@@ -500,9 +500,16 @@ a {
     left: 0;
     right: 0;
     padding: 1rem;
-    font-size: .85rem;
-    color: var(--color-text-mid);
+    font-size: 1.25rem;
+    line-height: 1.1;
     letter-spacing: -0.01em;
+    color: var(--color-text);
+}
+
+@media screen and (min-width: 900px) {
+    .site-footer {
+        font-size: 1.5rem;
+    }
 }
 
 @media (hover: hover) {
