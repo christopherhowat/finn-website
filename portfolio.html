@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio — Finn Delaney</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <a href="/" class="portfolio-back">← Finn Delaney</a>
+
+    <div class="portfolio-scroll" id="portfolioScroll">
+        <article class="portfolio-frame">
+            <figure class="portfolio-frame__figure">
+                <img src="hero.jpg" alt="Series I">
+            </figure>
+            <p class="portfolio-frame__title">Series I</p>
+        </article>
+        <article class="portfolio-frame">
+            <figure class="portfolio-frame__figure">
+                <img src="hero.jpg" alt="Series II">
+            </figure>
+            <p class="portfolio-frame__title">Series II</p>
+        </article>
+        <article class="portfolio-frame">
+            <figure class="portfolio-frame__figure">
+                <img src="hero.jpg" alt="Portraits">
+            </figure>
+            <p class="portfolio-frame__title">Portraits</p>
+        </article>
+        <article class="portfolio-frame">
+            <figure class="portfolio-frame__figure">
+                <img src="hero.jpg" alt="Still Life">
+            </figure>
+            <p class="portfolio-frame__title">Still Life</p>
+        </article>
+        <article class="portfolio-frame">
+            <figure class="portfolio-frame__figure">
+                <img src="hero.jpg" alt="Documentary">
+            </figure>
+            <p class="portfolio-frame__title">Documentary</p>
+        </article>
+    </div>
+
+    <nav class="portfolio-minimap" id="portfolioMinimap" aria-label="Portfolio navigation">
+        <button class="portfolio-minimap__dot" data-active="true" aria-label="Series I"></button>
+        <button class="portfolio-minimap__dot" aria-label="Series II"></button>
+        <button class="portfolio-minimap__dot" aria-label="Portraits"></button>
+        <button class="portfolio-minimap__dot" aria-label="Still Life"></button>
+        <button class="portfolio-minimap__dot" aria-label="Documentary"></button>
+    </nav>
+
+    <script>
+        const scroll = document.getElementById('portfolioScroll');
+        const dots = document.querySelectorAll('.portfolio-minimap__dot');
+
+        scroll.addEventListener('scroll', () => {
+            const index = Math.round(scroll.scrollLeft / scroll.offsetWidth);
+            dots.forEach((dot, i) => {
+                dot.dataset.active = i === index ? 'true' : 'false';
+            });
+        });
+
+        dots.forEach((dot, i) => {
+            dot.addEventListener('click', () => {
+                scroll.scrollTo({ left: i * scroll.offsetWidth, behavior: 'smooth' });
+            });
+        });
+    </script>
+</body>
+</html>
