@@ -76,7 +76,7 @@
     (function () {
         'use strict';
 
-        // Restore scroll to top, like rauno does
+        // Reset scroll position on load, like rauno does
         window.history.scrollRestoration = 'manual';
         document.documentElement.scrollTo(0, 0);
 
@@ -89,11 +89,14 @@
         // Minimap: 20 lines × 1px, 9px gap, 30px tracker → 161px travel
         var MINIMAP_TRAVEL = 20 * 1 + 19 * 9 - 30;
 
-        var STEP, SCROLL_RANGE;
-        var displayX = 0;
-        var rafId    = null;
+        var STEP = 0, SCROLL_RANGE = 0;
         var snapping = false;
         var snapTimer;
+
+        // Spring snap state (animates scrollTop like rauno's Framer Motion spring)
+        var springRaf = null;
+        var springPos = 0;
+        var springVel = 0;
 
         function setup() {
             var frameW = frames[0].offsetWidth;
@@ -101,42 +104,58 @@
             STEP         = frameW + gap;
             SCROLL_RANGE = (N - 1) * STEP;
 
-            // Centre first frame: push track's left edge to (viewport - frameW) / 2
+            // Centre first frame in viewport
             track.style.marginLeft = ((window.innerWidth - frameW) / 2) + 'px';
 
             // Ghost creates the vertical scroll range
             ghost.style.height = (window.innerHeight + SCROLL_RANGE) + 'px';
 
-            // Sync display position to current (reset) scroll
-            displayX = -window.scrollY;
-            track.style.transform = 'translateX(' + displayX + 'px)';
+            // Sync to current scroll immediately
+            applyScroll(window.scrollY);
         }
 
-        function updateMinimap() {
+        function applyScroll(scrollY) {
+            track.style.transform = 'translateX(' + (-scrollY) + 'px)';
             var progress = SCROLL_RANGE > 0
-                ? Math.min(Math.max(-displayX / SCROLL_RANGE, 0), 1)
+                ? Math.min(Math.max(scrollY / SCROLL_RANGE, 0), 1)
                 : 0;
             tracker.style.transform = 'translateX(' + (progress * MINIMAP_TRAVEL) + 'px)';
-            tracker.dataset.active  = progress > 0.005 ? 'true' : 'false';
         }
 
-        // Smooth follow: lerp displayX toward -scrollY each frame
-        function render() {
-            var target = -window.scrollY;
-            var diff   = target - displayX;
+        // Spring snap: animates document.scrollTop with stiffness/damping matching rauno
+        function springSnap(targetY) {
+            if (springRaf) cancelAnimationFrame(springRaf);
+            springPos = window.scrollY;
+            springVel = 0;
 
-            if (Math.abs(diff) < 0.3) {
-                displayX = target;
-                track.style.transform = 'translateX(' + displayX + 'px)';
-                updateMinimap();
-                rafId = null;
-                return;
+            // Normalise spring constants to pixel scale
+            // rauno: stiffness=600, damping=80, mass=1, dt=1/60
+            var stiffness = 600;
+            var damping   = 80;
+            var dt        = 1 / 60;
+
+            function step() {
+                // Run two half-steps per frame for numerical stability
+                for (var i = 0; i < 2; i++) {
+                    var force = stiffness * (targetY - springPos) - damping * springVel;
+                    springVel += force * (dt / 2);
+                    springPos += springVel * (dt / 2);
+                }
+
+                document.documentElement.scrollTop = springPos;
+
+                if (Math.abs(targetY - springPos) < 0.5 && Math.abs(springVel) < 0.5) {
+                    document.documentElement.scrollTop = targetY;
+                    snapping = false;
+                    springRaf = null;
+                    return;
+                }
+
+                springRaf = requestAnimationFrame(step);
             }
 
-            displayX += diff * 0.1;
-            track.style.transform = 'translateX(' + displayX + 'px)';
-            updateMinimap();
-            rafId = requestAnimationFrame(render);
+            snapping = true;
+            springRaf = requestAnimationFrame(step);
         }
 
         function snapToNearest() {
@@ -144,15 +163,13 @@
             var nearest = Math.round(window.scrollY / STEP);
             var targetY = Math.min(Math.max(nearest * STEP, 0), SCROLL_RANGE);
             if (Math.abs(window.scrollY - targetY) > 2) {
-                snapping = true;
-                window.scrollTo({ top: targetY, behavior: 'smooth' });
-                setTimeout(function () { snapping = false; }, 800);
+                springSnap(targetY);
             }
         }
 
+        // Direct: frames follow scroll with zero lag, like rauno's S.set(-1 * scrollY)
         window.addEventListener('scroll', function () {
-            if (rafId) cancelAnimationFrame(rafId);
-            rafId = requestAnimationFrame(render);
+            applyScroll(window.scrollY);
 
             if (!snapping) {
                 clearTimeout(snapTimer);
