@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Portfolio — Finn Delaney</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -33,42 +33,55 @@
         <div class="portfolio-minimap__tracker" id="minimapTracker"></div>
     </nav>
 
-    <!-- Ghost div: sits in normal document flow to create scroll height -->
-    <div id="portfolioGhost" class="portfolio-ghost"></div>
+    <!--
+        Ghost div — sits in normal document flow.
+        Its width AND height both equal 100v_ + v, where v = scroll range.
+        This is exactly what rauno does: both axes created so either
+        horizontal or vertical scroll drives the same S value.
+        For Finn we only use scrollY (vertical wheel → horizontal frames).
+    -->
+    <div id="portfolioGhost" class="portfolio-ghost" aria-hidden="true"></div>
 
-    <!-- Fixed stage: frames live here, driven by window.scrollY -->
+    <!-- Fixed stage: never moves -->
     <div class="portfolio-stage">
-        <div class="portfolio-track" id="portfolioTrack">
-            <article class="portfolio-frame">
-                <figure class="portfolio-frame__figure">
-                    <img src="hero.jpg" alt="Series I">
-                </figure>
-                <p class="portfolio-frame__title">Series I</p>
-            </article>
-            <article class="portfolio-frame">
-                <figure class="portfolio-frame__figure">
-                    <img src="hero.jpg" alt="Series II">
-                </figure>
-                <p class="portfolio-frame__title">Series II</p>
-            </article>
-            <article class="portfolio-frame">
-                <figure class="portfolio-frame__figure">
-                    <img src="hero.jpg" alt="Portraits">
-                </figure>
-                <p class="portfolio-frame__title">Portraits</p>
-            </article>
-            <article class="portfolio-frame">
-                <figure class="portfolio-frame__figure">
-                    <img src="hero.jpg" alt="Still Life">
-                </figure>
-                <p class="portfolio-frame__title">Still Life</p>
-            </article>
-            <article class="portfolio-frame">
-                <figure class="portfolio-frame__figure">
-                    <img src="hero.jpg" alt="Documentary">
-                </figure>
-                <p class="portfolio-frame__title">Documentary</p>
-            </article>
+        <!--
+            .portfolio-frames gets BOTH x (translateX) and scale,
+            matching rauno's: style={{ x: S, scale: D }}
+            transform-origin is 50% 50% (centre of viewport since it's inset:0)
+        -->
+        <div class="portfolio-frames" id="portfolioFrames">
+            <div class="portfolio-track" id="portfolioTrack">
+                <article class="portfolio-frame">
+                    <figure class="portfolio-frame__figure">
+                        <img src="hero.jpg" alt="Series I">
+                    </figure>
+                    <p class="portfolio-frame__title">Series I</p>
+                </article>
+                <article class="portfolio-frame">
+                    <figure class="portfolio-frame__figure">
+                        <img src="hero.jpg" alt="Series II">
+                    </figure>
+                    <p class="portfolio-frame__title">Series II</p>
+                </article>
+                <article class="portfolio-frame">
+                    <figure class="portfolio-frame__figure">
+                        <img src="hero.jpg" alt="Portraits">
+                    </figure>
+                    <p class="portfolio-frame__title">Portraits</p>
+                </article>
+                <article class="portfolio-frame">
+                    <figure class="portfolio-frame__figure">
+                        <img src="hero.jpg" alt="Still Life">
+                    </figure>
+                    <p class="portfolio-frame__title">Still Life</p>
+                </article>
+                <article class="portfolio-frame">
+                    <figure class="portfolio-frame__figure">
+                        <img src="hero.jpg" alt="Documentary">
+                    </figure>
+                    <p class="portfolio-frame__title">Documentary</p>
+                </article>
+            </div>
         </div>
     </div>
 
@@ -76,105 +89,106 @@
     (function () {
         'use strict';
 
-        // Reset scroll position on load, like rauno does
+        // Rauno does this too: prevent scroll restoration, always start at top
         window.history.scrollRestoration = 'manual';
         document.documentElement.scrollTo(0, 0);
 
         var ghost   = document.getElementById('portfolioGhost');
+        var frames  = document.getElementById('portfolioFrames');
         var track   = document.getElementById('portfolioTrack');
         var tracker = document.getElementById('minimapTracker');
-        var frames  = Array.from(document.querySelectorAll('.portfolio-frame'));
-        var N       = frames.length;
+        var frameEls = Array.from(document.querySelectorAll('.portfolio-frame'));
+        var N = frameEls.length;
 
-        // Minimap: 20 lines × 1px, 9px gap, 30px tracker → 161px travel
+        // Minimap: 20 lines × 1px wide, 9px gap, 30px tracker → 161px max travel
         var MINIMAP_TRAVEL = 20 * 1 + 19 * 9 - 30;
 
         var STEP = 0, SCROLL_RANGE = 0;
-        var snapping = false;
-        var snapTimer;
 
-        // Spring snap state (animates scrollTop like rauno's Framer Motion spring)
-        var springRaf = null;
-        var springPos = 0;
-        var springVel = 0;
+        // --- Scale spring (rauno: useMotionValue(1, {stiffness:500, damping:50})) ---
+        // naturalScale = clamp(min(innerWidth/1300, innerHeight/1020), [0.2, 1])
+        // On scroll: D.set(clamp(D.get() - 0.0001 * scrollY, [0.6, naturalScale]))
+        var MIN_SCALE     = 0.6;
+        var naturalScale  = 1;
+        var scaleD        = 1;   // current animated scale (D)
+        var scaleDVel     = 0;   // spring velocity
+        var scaleRaf      = null;
+        var K_SCALE = 500, C_SCALE = 50; // rauno's exact spring constants
 
+        function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+        // --- Setup ---
         function setup() {
-            var frameW = frames[0].offsetWidth;
+            naturalScale = clamp(
+                Math.min(window.innerWidth / 1300, window.innerHeight / 1020),
+                0.2, 1
+            );
+            // Jump D to natural scale (rauno: D.jump(e) on resize)
+            scaleD    = naturalScale;
+            scaleDVel = 0;
+
+            var frameW = frameEls[0].offsetWidth;
             var gap    = parseFloat(getComputedStyle(track).columnGap) || 0;
             STEP         = frameW + gap;
             SCROLL_RANGE = (N - 1) * STEP;
 
-            // Centre first frame in viewport
+            // Centre frame 0 in viewport (rauno centres via flex on .center)
             track.style.marginLeft = ((window.innerWidth - frameW) / 2) + 'px';
 
-            // Ghost creates the vertical scroll range
-            ghost.style.height = (window.innerHeight + SCROLL_RANGE) + 'px';
+            // Ghost: width AND height = 100v_ + v, exactly like rauno
+            ghost.style.width  = 'calc(100vw + ' + SCROLL_RANGE + 'px)';
+            ghost.style.height = 'calc(100vh + ' + SCROLL_RANGE + 'px)';
 
-            // Sync to current scroll immediately
-            applyScroll(window.scrollY);
+            apply(window.scrollY);
         }
 
-        function applyScroll(scrollY) {
-            track.style.transform = 'translateX(' + (-scrollY) + 'px)';
+        // --- Apply scroll: S.set(-1 * scrollY), D stays from spring ---
+        function apply(scrollY) {
+            // x: S = -scrollY (rauno: S.set(-1 * e), no spring on translation)
+            // scale: D (rauno: style={{ x: S, scale: D }})
+            frames.style.transform =
+                'translateX(' + (-scrollY) + 'px) scale(' + scaleD + ')';
+
+            // Minimap
             var progress = SCROLL_RANGE > 0
-                ? Math.min(Math.max(scrollY / SCROLL_RANGE, 0), 1)
-                : 0;
-            tracker.style.transform = 'translateX(' + (progress * MINIMAP_TRAVEL) + 'px)';
+                ? clamp(scrollY / SCROLL_RANGE, 0, 1) : 0;
+            tracker.style.transform =
+                'translateX(' + (progress * MINIMAP_TRAVEL) + 'px)';
         }
 
-        // Spring snap: animates document.scrollTop with stiffness/damping matching rauno
-        function springSnap(targetY) {
-            if (springRaf) cancelAnimationFrame(springRaf);
-            springPos = window.scrollY;
-            springVel = 0;
+        // --- Scale spring loop ---
+        // rauno: D.set(clamp(D.get() - 0.0001 * scrollY, [0.6, naturalScale]))
+        // D has spring {stiffness:500, damping:50}
+        function tickScaleSpring() {
+            var target = clamp(naturalScale - 0.0001 * window.scrollY, MIN_SCALE, naturalScale);
+            var dt     = 1 / 60;
+            var force  = K_SCALE * (target - scaleD) - C_SCALE * scaleDVel;
+            scaleDVel += force * dt;
+            scaleD    += scaleDVel * dt;
 
-            // Normalise spring constants to pixel scale
-            // rauno: stiffness=600, damping=80, mass=1, dt=1/60
-            var stiffness = 600;
-            var damping   = 80;
-            var dt        = 1 / 60;
+            // Apply with current scrollY
+            apply(window.scrollY);
 
-            function step() {
-                // Run two half-steps per frame for numerical stability
-                for (var i = 0; i < 2; i++) {
-                    var force = stiffness * (targetY - springPos) - damping * springVel;
-                    springVel += force * (dt / 2);
-                    springPos += springVel * (dt / 2);
-                }
-
-                document.documentElement.scrollTop = springPos;
-
-                if (Math.abs(targetY - springPos) < 0.5 && Math.abs(springVel) < 0.5) {
-                    document.documentElement.scrollTop = targetY;
-                    snapping = false;
-                    springRaf = null;
-                    return;
-                }
-
-                springRaf = requestAnimationFrame(step);
-            }
-
-            snapping = true;
-            springRaf = requestAnimationFrame(step);
-        }
-
-        function snapToNearest() {
-            if (!STEP) return;
-            var nearest = Math.round(window.scrollY / STEP);
-            var targetY = Math.min(Math.max(nearest * STEP, 0), SCROLL_RANGE);
-            if (Math.abs(window.scrollY - targetY) > 2) {
-                springSnap(targetY);
+            var settled = Math.abs(target - scaleD) < 0.0001 && Math.abs(scaleDVel) < 0.0001;
+            if (settled) {
+                scaleD    = target;
+                scaleRaf  = null;
+                apply(window.scrollY);
+            } else {
+                scaleRaf = requestAnimationFrame(tickScaleSpring);
             }
         }
 
-        // Direct: frames follow scroll with zero lag, like rauno's S.set(-1 * scrollY)
+        function kickScaleSpring() {
+            if (scaleRaf) return;
+            scaleRaf = requestAnimationFrame(tickScaleSpring);
+        }
+
+        // --- Scroll listener ---
+        // rauno: no snap on scroll, no lerp on translation
         window.addEventListener('scroll', function () {
-            applyScroll(window.scrollY);
-
-            if (!snapping) {
-                clearTimeout(snapTimer);
-                snapTimer = setTimeout(snapToNearest, 150);
-            }
+            apply(window.scrollY);
+            kickScaleSpring();
         }, { passive: true });
 
         window.addEventListener('resize', setup);
