@@ -116,6 +116,9 @@
 
         var STEP = 0, SCROLL_RANGE = 0;
 
+        // rauno: useMediaQuery("(pointer: coarse)") to detect touch/mobile
+        var isCoarse = window.matchMedia('(pointer: coarse)').matches;
+
         // D = useSpring(1, { stiffness:500, damping:50 })
         // d.current = naturalScale (max allowed scale)
         var MIN_SCALE    = 0.6;
@@ -130,11 +133,12 @@
 
         // --- Setup ---
         function setup() {
-            // e = clamp(min(innerWidth/1300, innerHeight/1020), [0.2, 1])
-            naturalScale = clamp(
-                Math.min(window.innerWidth / 1300, window.innerHeight / 1020),
-                0.2, 1
-            );
+            // On desktop: clamp(min(innerWidth/1300, innerHeight/1020), [0.2, 1])
+            // On mobile (coarse pointer): start at 1.0 so it zooms out to MIN_SCALE
+            // as the user scrolls, giving the same zoom-out feel as desktop
+            naturalScale = isCoarse
+                ? 1.0
+                : clamp(Math.min(window.innerWidth / 1300, window.innerHeight / 1020), 0.2, 1);
             // rauno: 0.6 !== D.get() && D.jump(e)
             if (Math.abs(scaleD - MIN_SCALE) > 0.001) {
                 scaleD      = naturalScale;
