@@ -109,11 +109,11 @@ body {
     margin: 0;
     color: var(--color-text);
     background-color: var(--color-background);
-    --color-text: #f0d8dd;
-    --color-background: #255447;
-    --color-text-mid: rgba(240, 216, 221, 0.55);
-    --color-border-mid: rgba(240, 216, 221, 0.35);
-    --color-border-light: rgba(240, 216, 221, 0.15);
+    --color-text: #255447;
+    --color-background: #f0d8dd;
+    --color-text-mid: rgba(37, 84, 71, 0.55);
+    --color-border-mid: rgba(37, 84, 71, 0.35);
+    --color-border-light: rgba(37, 84, 71, 0.15);
 }
 
 a {
