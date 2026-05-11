@@ -120,41 +120,56 @@ a {
     color: inherit;
 }
 
-/* Hero entrance animations */
+/* Hero entrance animations — blur fade matching daybreak.studio's animate class */
 
-@keyframes hero-fade-up {
-    from { opacity: 0; transform: translateY(0.4em); }
-    to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes hero-fade {
-    from { opacity: 0; }
-    to   { opacity: 1; }
+@keyframes hero-blur-fade {
+    from { opacity: 0; filter: blur(10px); }
+    to   { opacity: 1; filter: blur(0); }
 }
 
 .home-hero--animate .segment--first {
-    animation: hero-fade 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: hero-blur-fade 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
     animation-delay: 0ms;
 }
 
 .home-hero--animate .segment--second {
-    animation: hero-fade-up 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
-    animation-delay: 120ms;
+    animation: hero-blur-fade 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: 80ms;
 }
 
 .home-hero--animate .segment--third {
-    animation: hero-fade-up 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
-    animation-delay: 220ms;
+    animation: hero-blur-fade 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: 160ms;
 }
 
 .home-hero--animate .home-hero__accent-image {
-    animation: hero-fade 1s cubic-bezier(0.16, 1, 0.3, 1) both;
-    animation-delay: 300ms;
+    animation: hero-blur-fade 1.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: 60ms;
 }
 
 .home-hero--animate .home-nav {
-    animation: hero-fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
-    animation-delay: 380ms;
+    animation: hero-blur-fade 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: 260ms;
+}
+
+/* Iridescent light veil on hero image — replicates daybreak.studio's effect.png
+   overlay (mix-blend-mode: lighten, inset: -50%) using CSS radial gradients */
+.home-hero__accent-image {
+    position: relative;
+}
+
+.home-hero__accent-image::after {
+    content: '';
+    position: absolute;
+    inset: -40%;
+    background:
+        radial-gradient(ellipse at 22% 38%, rgba(232, 180, 184, 0.7) 0%, transparent 52%),
+        radial-gradient(ellipse at 80% 65%, rgba(184, 212, 232, 0.7) 0%, transparent 52%),
+        radial-gradient(ellipse at 55% 18%, rgba(212, 232, 184, 0.55) 0%, transparent 48%),
+        radial-gradient(ellipse at 40% 80%, rgba(212, 184, 232, 0.55) 0%, transparent 48%);
+    mix-blend-mode: lighten;
+    pointer-events: none;
+    z-index: 1;
 }
 
 /* Hero */
