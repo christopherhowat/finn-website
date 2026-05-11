@@ -7,11 +7,7 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="page-intro" id="pageIntro">
-        <div class="page-intro__line"><span class="page-intro__word" id="introWord1">Finn</span></div>
-        <div class="page-intro__line"><span class="page-intro__word page-intro__word--second" id="introWord2">Delaney</span></div>
-    </div>
-    <section class="home-hero">
+    <section class="home-hero home-hero--animate">
         <hgroup>
             <h1 class="home-hero__title">
                 <span class="segment segment--first">Finn Delaney</span>
@@ -59,23 +55,6 @@
     <footer class="site-footer">
         <p>The personal site and portfolio of photographer Finn Delaney.</p>
     </footer>
-    <script>
-    (function () {
-        var intro = document.getElementById('pageIntro');
-        if (!intro) return;
-        var words = intro.querySelectorAll('.page-intro__word');
-
-        // Stagger words in
-        setTimeout(function () { words[0].classList.add('is-visible'); }, 80);
-        setTimeout(function () { words[1].classList.add('is-visible'); }, 200);
-
-        // Lift curtain after words have settled
-        setTimeout(function () {
-            intro.classList.add('is-leaving');
-            setTimeout(function () { intro.parentNode && intro.parentNode.removeChild(intro); }, 1150);
-        }, 1600);
-    }());
-    </script>
     <script>
     (function () {
         // On mobile the segment--first ("FINN DELANEY") is rotated 90deg.
