@@ -7,7 +7,10 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="page-intro" id="pageIntro"></div>
+    <div class="page-intro" id="pageIntro">
+        <div class="page-intro__line"><span class="page-intro__word" id="introWord1">Finn</span></div>
+        <div class="page-intro__line"><span class="page-intro__word page-intro__word--second" id="introWord2">Delaney</span></div>
+    </div>
     <section class="home-hero">
         <hgroup>
             <h1 class="home-hero__title">
@@ -59,12 +62,18 @@
     <script>
     (function () {
         var intro = document.getElementById('pageIntro');
-        if (intro) {
-            setTimeout(function () {
-                intro.classList.add('is-leaving');
-                setTimeout(function () { intro.parentNode && intro.parentNode.removeChild(intro); }, 1150);
-            }, 180);
-        }
+        if (!intro) return;
+        var words = intro.querySelectorAll('.page-intro__word');
+
+        // Stagger words in
+        setTimeout(function () { words[0].classList.add('is-visible'); }, 80);
+        setTimeout(function () { words[1].classList.add('is-visible'); }, 200);
+
+        // Lift curtain after words have settled
+        setTimeout(function () {
+            intro.classList.add('is-leaving');
+            setTimeout(function () { intro.parentNode && intro.parentNode.removeChild(intro); }, 1150);
+        }, 1600);
     }());
     </script>
     <script>

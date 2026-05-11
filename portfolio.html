@@ -11,7 +11,10 @@
     </style>
 </head>
 <body class="portfolio-page">
-    <div class="page-intro" id="pageIntro"></div>
+    <div class="page-intro" id="pageIntro">
+        <div class="page-intro__line"><span class="page-intro__word" id="introWord1">Finn</span></div>
+        <div class="page-intro__line"><span class="page-intro__word page-intro__word--second" id="introWord2">Delaney</span></div>
+    </div>
     <a href="/" class="portfolio-back">← Finn Delaney</a>
 
     <nav class="portfolio-minimap" aria-label="Portfolio navigation">
@@ -99,12 +102,16 @@
     <script>
     (function () {
         var intro = document.getElementById('pageIntro');
-        if (intro) {
-            setTimeout(function () {
-                intro.classList.add('is-leaving');
-                setTimeout(function () { intro.parentNode && intro.parentNode.removeChild(intro); }, 1150);
-            }, 180);
-        }
+        if (!intro) return;
+        var words = intro.querySelectorAll('.page-intro__word');
+
+        setTimeout(function () { words[0].classList.add('is-visible'); }, 80);
+        setTimeout(function () { words[1].classList.add('is-visible'); }, 200);
+
+        setTimeout(function () {
+            intro.classList.add('is-leaving');
+            setTimeout(function () { intro.parentNode && intro.parentNode.removeChild(intro); }, 1150);
+        }, 1600);
     }());
     </script>
     <script>
