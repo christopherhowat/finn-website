@@ -35,7 +35,7 @@
   var PRESSURE_ITER = 20;
   var VEL_DISS  = 0.98;
   var DYE_DISS  = 0.97;
-  var SPLAT_R   = 0.25;   // % of viewport (divided by 100 for shader)
+  var SPLAT_R   = 0.08;   // % of viewport (divided by 100 for shader)
   var FORCE     = 6000;
   var P_DECAY   = 0.8;
   var THRESHOLD = 0.3;
