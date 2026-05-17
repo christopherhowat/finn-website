@@ -2,200 +2,330 @@
   'use strict';
 
   if (window.matchMedia('(pointer: coarse)').matches) return;
+  var THREE = window.THREE;
+  if (!THREE) return;
 
+  // ── Canvas ────────────────────────────────────────────────────────────────
   var canvas = document.createElement('canvas');
-  canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999;mix-blend-mode:screen;';
+  canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999;mix-blend-mode:difference;';
   document.body.appendChild(canvas);
 
-  var gl = canvas.getContext('webgl2');
-  if (!gl) { canvas.remove(); return; }
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, premultipliedAlpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.autoClear = false;
+  renderer.setClearColor(0x000000, 0);
 
-  var w = 0, h = 0, simW = 0, simH = 0;
+  // ── Scene / Quad ──────────────────────────────────────────────────────────
+  var scene  = new THREE.Scene();
+  var camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-  // ── shaders ──────────────────────────────────────────────────────────────
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(
+      [-1,-1,0, 1,-1,0, -1,1,0, 1,-1,0, 1,1,0, -1,1,0], 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(
+      [0,0, 1,0, 0,1, 1,0, 1,1, 0,1], 2));
+  var quad = new THREE.Mesh(geo);
+  scene.add(quad);
 
-  var VS = '#version 300 es\nin vec2 a_pos;out vec2 v_uv;\nvoid main(){gl_Position=vec4(a_pos,0.,1.);v_uv=a_pos*.5+.5;}';
+  // ── Config ────────────────────────────────────────────────────────────────
+  var SIM_RES   = 256;
+  var DYE_RES   = 1024;
+  var CURL      = 30;
+  var PRESSURE_ITER = 20;
+  var VEL_DISS  = 0.98;
+  var DYE_DISS  = 0.97;
+  var SPLAT_R   = 0.25;   // % of viewport (divided by 100 for shader)
+  var FORCE     = 6000;
+  var P_DECAY   = 0.8;
+  var THRESHOLD = 0.3;
+  var SOFTNESS  = 0.0;
 
-  var SIM_FS = [
-    '#version 300 es',
+  // ── FBO helpers ───────────────────────────────────────────────────────────
+  function fboSize(res) {
+    var ar = window.innerWidth / window.innerHeight;
+    return ar > 1
+      ? { w: res, h: Math.round(res / ar) }
+      : { w: Math.round(res * ar), h: res };
+  }
+
+  function mkFBO(w, h, filter) {
+    return new THREE.WebGLRenderTarget(w, h, {
+      type:         THREE.HalfFloatType,
+      format:       THREE.RGBAFormat,
+      minFilter:    filter || THREE.LinearFilter,
+      magFilter:    filter || THREE.LinearFilter,
+      wrapS:        THREE.ClampToEdgeWrapping,
+      wrapT:        THREE.ClampToEdgeWrapping,
+      depthBuffer:  false,
+      stencilBuffer:false,
+    });
+  }
+
+  function mkDouble(w, h, filter) {
+    var a = mkFBO(w, h, filter), b = mkFBO(w, h, filter);
+    return { read: a, write: b, swap: function(){ var t=this.read; this.read=this.write; this.write=t; } };
+  }
+
+  var ss = fboSize(SIM_RES);
+  var ds = fboSize(DYE_RES);
+  var simTS = new THREE.Vector2(1/ss.w, 1/ss.h);
+  var dyeTS = new THREE.Vector2(1/ds.w, 1/ds.h);
+
+  var vel      = mkDouble(ss.w, ss.h);
+  var dye      = mkDouble(ds.w, ds.h);
+  var divFBO   = mkFBO(ss.w, ss.h, THREE.NearestFilter);
+  var curlFBO  = mkFBO(ss.w, ss.h, THREE.NearestFilter);
+  var pres     = mkDouble(ss.w, ss.h, THREE.NearestFilter);
+
+  // ── Vertex shader (shared) ────────────────────────────────────────────────
+  var VS = [
     'precision highp float;',
-    'uniform sampler2D u_prev;',
-    'uniform vec2 u_texelSize;',
-    'uniform vec4 u_from;',
-    'uniform vec4 u_to;',
-    'uniform vec2 u_vel;',
-    'uniform float u_pushStrength;',
-    'uniform vec3 u_dissipations;',
-    'in vec2 v_uv;out vec4 fragColor;',
-    'vec2 sdSeg(vec2 p,vec2 a,vec2 b){vec2 pa=p-a,ba=b-a;float h=clamp(dot(pa,ba)/dot(ba,ba),0.,1.);return vec2(length(pa-ba*h),h);}',
-    'void main(){',
-      'vec2 res=sdSeg(gl_FragCoord.xy,u_from.xy,u_to.xy);',
-      'vec2 rw=mix(u_from.zw,u_to.zw,res.y);',
-      'float d=1.-smoothstep(-.01,rw.x,res.x);',
-      'vec4 ld=texture(u_prev,v_uv);',
-      'vec2 vi=(0.5-ld.xy)*u_pushStrength;',
-      'vec4 data=texture(u_prev,v_uv+vi*u_texelSize);',
-      'data.xy-=0.5;',
-      'vec4 diss=vec4(u_dissipations.xxy,u_dissipations.z);',
-      'vec4 delta=(diss-1.)*data;',
-      'delta+=vec4(u_vel*d,rw.yy*d);',
-      'delta.zw=sign(delta.zw)*max(vec2(0.004),abs(delta.zw));',
-      'data+=delta;data.xy+=0.5;',
-      'fragColor=clamp(data,vec4(0.),vec4(1.));',
-    '}'
+    'attribute vec3 position;',
+    'attribute vec2 uv;',
+    'varying vec2 vUv;',
+    'void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
   ].join('\n');
 
-  var DISP_FS = [
-    '#version 300 es',
+  function mat(fs, u) {
+    return new THREE.RawShaderMaterial({
+      vertexShader: VS, fragmentShader: fs, uniforms: u||{},
+      depthTest: false, depthWrite: false,
+    });
+  }
+
+  // ── Fragment shaders ──────────────────────────────────────────────────────
+  var clearMat = mat([
+    'precision mediump float;',
+    'uniform sampler2D uTex; uniform float value; varying vec2 vUv;',
+    'void main(){gl_FragColor=value*texture2D(uTex,vUv);}',
+  ].join('\n'), { uTex:{value:null}, value:{value:P_DECAY} });
+
+  var splatMat = mat([
     'precision highp float;',
-    'uniform sampler2D u_paint;',
-    'uniform float u_rgbShift;',
-    'uniform float u_colorMult;',
-    'uniform float u_shade;',
-    'in vec2 v_uv;out vec4 fragColor;',
+    'uniform sampler2D uTarget; uniform float ar; uniform vec3 color;',
+    'uniform vec2 point; uniform float radius; varying vec2 vUv;',
     'void main(){',
-      'vec4 data=texture(u_paint,v_uv);',
-      'float weight=(data.z+data.w)*.5;',
-      'vec2 vel=(0.5-data.xy-.001)*2.*weight;',
-      'vec3 col=sin(vec3(vel.x+vel.y)*40.+vec3(0.,2.,4.)*u_rgbShift)',
-        '*smoothstep(.4,-.9,weight)*u_shade*max(abs(vel.x),abs(vel.y))*u_colorMult;',
-      'col=abs(col);',
-      'fragColor=vec4(col,clamp(weight*3.,0.,1.));',
-    '}'
-  ].join('\n');
-
-  function mkShader(type, src) {
-    var s = gl.createShader(type);
-    gl.shaderSource(s, src);
-    gl.compileShader(s);
-    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
-      console.error('shader:', gl.getShaderInfoLog(s));
-    return s;
-  }
-  function mkProg(vs, fs) {
-    var p = gl.createProgram();
-    gl.attachShader(p, mkShader(gl.VERTEX_SHADER, vs));
-    gl.attachShader(p, mkShader(gl.FRAGMENT_SHADER, fs));
-    gl.linkProgram(p);
-    if (!gl.getProgramParameter(p, gl.LINK_STATUS))
-      console.error('program:', gl.getProgramInfoLog(p));
-    return p;
-  }
-
-  var simProg  = mkProg(VS, SIM_FS);
-  var dispProg = mkProg(VS, DISP_FS);
-
-  var quadBuf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
-
-  function bindQuad(prog) {
-    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
-    var loc = gl.getAttribLocation(prog, 'a_pos');
-    gl.enableVertexAttribArray(loc);
-    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-  }
-
-  // ── FBO ping-pong (RGBA8 — no extension needed) ───────────────────────────
-
-  var simPair = [null, null], simCurr = 0;
-
-  function mkFBO(fw, fh) {
-    var tex = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, fw, fh, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    var fbo = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
-    gl.clearColor(0.502, 0.502, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    return { fbo: fbo, tex: tex };
-  }
-
-  function resize() {
-    w = window.innerWidth;
-    h = window.innerHeight;
-    simW = Math.max(1, Math.ceil(w / 4));
-    simH = Math.max(1, Math.ceil(h / 4));
-    canvas.width  = w;
-    canvas.height = h;
-    if (simPair[0]) {
-      gl.deleteTexture(simPair[0].tex); gl.deleteFramebuffer(simPair[0].fbo);
-      gl.deleteTexture(simPair[1].tex); gl.deleteFramebuffer(simPair[1].fbo);
-    }
-    simPair[0] = mkFBO(simW, simH);
-    simPair[1] = mkFBO(simW, simH);
-    simCurr = 0;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  }
-
-  window.addEventListener('resize', resize);
-  resize();
-
-  // ── mouse ─────────────────────────────────────────────────────────────────
-
-  var mx = w / 2, my = h / 2, pmx = w / 2, pmy = h / 2, mvx = 0, mvy = 0;
-
-  window.addEventListener('mousemove', function (e) {
-    pmx = mx; pmy = my;
-    mx = e.clientX; my = e.clientY;
-    mvx = mx - pmx; mvy = my - pmy;
+      'vec2 p=vUv-point; p.x*=ar;',
+      'vec3 s=exp(-dot(p,p)/radius)*color;',
+      'gl_FragColor=vec4(texture2D(uTarget,vUv).xyz+s,1.);',
+    '}',
+  ].join('\n'), {
+    uTarget:{value:null}, ar:{value:1}, color:{value:new THREE.Vector3()},
+    point:{value:new THREE.Vector2()}, radius:{value:0},
   });
 
-  // ── render ────────────────────────────────────────────────────────────────
+  var advectMat = mat([
+    'precision highp float;',
+    'uniform sampler2D uVel; uniform sampler2D uSrc;',
+    'uniform vec2 simTS; uniform vec2 srcTS; uniform float dt; uniform float diss;',
+    'varying vec2 vUv;',
+    'vec4 bilerp(sampler2D s,vec2 uv,vec2 ts){',
+      'vec2 st=uv/ts-0.5; vec2 f=fract(st); vec2 i=floor(st);',
+      'vec4 a=texture2D(s,(i+vec2(.5,.5))*ts); vec4 b=texture2D(s,(i+vec2(1.5,.5))*ts);',
+      'vec4 c=texture2D(s,(i+vec2(.5,1.5))*ts); vec4 d=texture2D(s,(i+vec2(1.5,1.5))*ts);',
+      'return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);',
+    '}',
+    'void main(){',
+      'vec2 coord=vUv-dt*bilerp(uVel,vUv,simTS).xy*simTS;',
+      'gl_FragColor=diss*bilerp(uSrc,coord,srcTS);',
+    '}',
+  ].join('\n'), {
+    uVel:{value:null}, uSrc:{value:null},
+    simTS:{value:simTS.clone()}, srcTS:{value:simTS.clone()},
+    dt:{value:0.016}, diss:{value:1.0},
+  });
+
+  var divMat = mat([
+    'precision mediump float;',
+    'uniform sampler2D uVel; uniform vec2 ts; varying vec2 vUv;',
+    'void main(){',
+      'float L=texture2D(uVel,vUv-vec2(ts.x,0.)).x;',
+      'float R=texture2D(uVel,vUv+vec2(ts.x,0.)).x;',
+      'float T=texture2D(uVel,vUv+vec2(0.,ts.y)).y;',
+      'float B=texture2D(uVel,vUv-vec2(0.,ts.y)).y;',
+      'gl_FragColor=vec4(.5*(R-L+T-B),0.,0.,1.);',
+    '}',
+  ].join('\n'), { uVel:{value:null}, ts:{value:simTS.clone()} });
+
+  var curlMat = mat([
+    'precision mediump float;',
+    'uniform sampler2D uVel; uniform vec2 ts; varying vec2 vUv;',
+    'void main(){',
+      'float L=texture2D(uVel,vUv-vec2(ts.x,0.)).y;',
+      'float R=texture2D(uVel,vUv+vec2(ts.x,0.)).y;',
+      'float T=texture2D(uVel,vUv+vec2(0.,ts.y)).x;',
+      'float B=texture2D(uVel,vUv-vec2(0.,ts.y)).x;',
+      'gl_FragColor=vec4(.5*(R-L-T+B),0.,0.,1.);',
+    '}',
+  ].join('\n'), { uVel:{value:null}, ts:{value:simTS.clone()} });
+
+  var vortMat = mat([
+    'precision highp float;',
+    'uniform sampler2D uVel; uniform sampler2D uCurl;',
+    'uniform vec2 ts; uniform float curl; uniform float dt; varying vec2 vUv;',
+    'void main(){',
+      'float L=texture2D(uCurl,vUv-vec2(ts.x,0.)).x;',
+      'float R=texture2D(uCurl,vUv+vec2(ts.x,0.)).x;',
+      'float T=texture2D(uCurl,vUv+vec2(0.,ts.y)).x;',
+      'float B=texture2D(uCurl,vUv-vec2(0.,ts.y)).x;',
+      'float C=texture2D(uCurl,vUv).x;',
+      'vec2 f=.5*vec2(abs(T)-abs(B),abs(R)-abs(L));',
+      'f/=length(f)+.0001; f*=curl*C; f.y*=-1.;',
+      'gl_FragColor=vec4(texture2D(uVel,vUv).xy+f*dt,0.,1.);',
+    '}',
+  ].join('\n'), {
+    uVel:{value:null}, uCurl:{value:null},
+    ts:{value:simTS.clone()}, curl:{value:CURL}, dt:{value:0.016},
+  });
+
+  var presMat = mat([
+    'precision mediump float;',
+    'uniform sampler2D uPres; uniform sampler2D uDiv; uniform vec2 ts; varying vec2 vUv;',
+    'void main(){',
+      'float L=texture2D(uPres,vUv-vec2(ts.x,0.)).x;',
+      'float R=texture2D(uPres,vUv+vec2(ts.x,0.)).x;',
+      'float T=texture2D(uPres,vUv+vec2(0.,ts.y)).x;',
+      'float B=texture2D(uPres,vUv-vec2(0.,ts.y)).x;',
+      'float d=texture2D(uDiv,vUv).x;',
+      'gl_FragColor=vec4((L+R+B+T-d)*.25,0.,0.,1.);',
+    '}',
+  ].join('\n'), { uPres:{value:null}, uDiv:{value:null}, ts:{value:simTS.clone()} });
+
+  var gradMat = mat([
+    'precision mediump float;',
+    'uniform sampler2D uPres; uniform sampler2D uVel; uniform vec2 ts; varying vec2 vUv;',
+    'void main(){',
+      'float L=texture2D(uPres,vUv-vec2(ts.x,0.)).x;',
+      'float R=texture2D(uPres,vUv+vec2(ts.x,0.)).x;',
+      'float T=texture2D(uPres,vUv+vec2(0.,ts.y)).x;',
+      'float B=texture2D(uPres,vUv-vec2(0.,ts.y)).x;',
+      'vec2 v=texture2D(uVel,vUv).xy;',
+      'gl_FragColor=vec4(v-vec2(R-L,T-B),0.,1.);',
+    '}',
+  ].join('\n'), { uPres:{value:null}, uVel:{value:null}, ts:{value:simTS.clone()} });
+
+  var dispMat = mat([
+    'precision highp float;',
+    'uniform sampler2D uTex; uniform float threshold; uniform float softness; varying vec2 vUv;',
+    'void main(){',
+      'vec3 c=texture2D(uTex,vUv).rgb;',
+      'float b=max(c.r,max(c.g,c.b));',
+      'float a=smoothstep(threshold-max(softness,.001),threshold+max(softness,.001),b);',
+      'gl_FragColor=vec4(1.,1.,1.,a);',
+    '}',
+  ].join('\n'), {
+    uTex:{value:null}, threshold:{value:THRESHOLD}, softness:{value:SOFTNESS},
+  });
+
+  // ── Pass helper ───────────────────────────────────────────────────────────
+  function pass(m, target) {
+    quad.material = m;
+    renderer.setRenderTarget(target || null);
+    renderer.render(scene, camera);
+  }
+
+  // ── Splat ─────────────────────────────────────────────────────────────────
+  function splat(x, y, dx, dy) {
+    var ar = window.innerWidth / window.innerHeight;
+    var r  = (ar > 1 ? SPLAT_R * ar : SPLAT_R) / 100;
+
+    splatMat.uniforms.ar.value = ar;
+    splatMat.uniforms.point.value.set(x, y);
+    splatMat.uniforms.radius.value = r;
+
+    splatMat.uniforms.uTarget.value = vel.read.texture;
+    splatMat.uniforms.color.value.set(dx, dy, 0);
+    pass(splatMat, vel.write);
+    vel.swap();
+
+    splatMat.uniforms.uTarget.value = dye.read.texture;
+    splatMat.uniforms.color.value.set(1, 1, 1);
+    pass(splatMat, dye.write);
+    dye.swap();
+  }
+
+  // ── Simulate ──────────────────────────────────────────────────────────────
+  function simulate(dt) {
+    curlMat.uniforms.uVel.value = vel.read.texture;
+    pass(curlMat, curlFBO);
+
+    vortMat.uniforms.uVel.value  = vel.read.texture;
+    vortMat.uniforms.uCurl.value = curlFBO.texture;
+    vortMat.uniforms.dt.value    = dt;
+    pass(vortMat, vel.write); vel.swap();
+
+    divMat.uniforms.uVel.value = vel.read.texture;
+    pass(divMat, divFBO);
+
+    clearMat.uniforms.uTex.value = pres.read.texture;
+    pass(clearMat, pres.write); pres.swap();
+
+    for (var i = 0; i < PRESSURE_ITER; i++) {
+      presMat.uniforms.uPres.value = pres.read.texture;
+      presMat.uniforms.uDiv.value  = divFBO.texture;
+      pass(presMat, pres.write); pres.swap();
+    }
+
+    gradMat.uniforms.uPres.value = pres.read.texture;
+    gradMat.uniforms.uVel.value  = vel.read.texture;
+    pass(gradMat, vel.write); vel.swap();
+
+    // advect velocity
+    advectMat.uniforms.uVel.value  = vel.read.texture;
+    advectMat.uniforms.uSrc.value  = vel.read.texture;
+    advectMat.uniforms.simTS.value.copy(simTS);
+    advectMat.uniforms.srcTS.value.copy(simTS);
+    advectMat.uniforms.dt.value    = dt;
+    advectMat.uniforms.diss.value  = VEL_DISS;
+    pass(advectMat, vel.write); vel.swap();
+
+    // advect dye
+    advectMat.uniforms.uVel.value  = vel.read.texture;
+    advectMat.uniforms.uSrc.value  = dye.read.texture;
+    advectMat.uniforms.srcTS.value.copy(dyeTS);
+    advectMat.uniforms.diss.value  = DYE_DISS;
+    pass(advectMat, dye.write); dye.swap();
+  }
+
+  // ── Render to screen ──────────────────────────────────────────────────────
+  function render() {
+    renderer.setRenderTarget(null);
+    renderer.clear();
+    dispMat.uniforms.uTex.value = dye.read.texture;
+    pass(dispMat, null);
+  }
+
+  // ── Input ─────────────────────────────────────────────────────────────────
+  var mx = 0.5, my = 0.5, px = 0.5, py = 0.5, moved = false;
+
+  window.addEventListener('mousemove', function (e) {
+    px = mx; py = my;
+    mx = e.clientX / window.innerWidth;
+    my = 1 - e.clientY / window.innerHeight;
+    moved = true;
+  });
+
+  window.addEventListener('resize', function () {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // ── Loop ──────────────────────────────────────────────────────────────────
+  var last = performance.now();
 
   function tick() {
     requestAnimationFrame(tick);
+    var now = performance.now();
+    var dt  = Math.min((now - last) / 1000, 0.016);
+    last = now;
 
-    var readIdx  = simCurr;
-    var writeIdx = 1 - simCurr;
+    if (moved) {
+      splat(mx, my, (mx - px) * FORCE, (my - py) * FORCE);
+      moved = false;
+    }
 
-    // simulation pass
-    gl.bindFramebuffer(gl.FRAMEBUFFER, simPair[writeIdx].fbo);
-    gl.viewport(0, 0, simW, simH);
-    gl.useProgram(simProg);
-    bindQuad(simProg);
-
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, simPair[readIdx].tex);
-    gl.uniform1i(gl.getUniformLocation(simProg, 'u_prev'), 0);
-    gl.uniform2f(gl.getUniformLocation(simProg, 'u_texelSize'), 1 / simW, 1 / simH);
-    gl.uniform1f(gl.getUniformLocation(simProg, 'u_pushStrength'), 10);
-    gl.uniform3f(gl.getUniformLocation(simProg, 'u_dissipations'), 0.985, 0.985, 0.5);
-
-    var fromX = pmx / w * simW, fromY = (1 - pmy / h) * simH;
-    var toX   = mx  / w * simW, toY   = (1 - my  / h) * simH;
-    gl.uniform4f(gl.getUniformLocation(simProg, 'u_from'), fromX, fromY, 18, 1);
-    gl.uniform4f(gl.getUniformLocation(simProg, 'u_to'),   toX,   toY,   18, 1);
-
-    var speed = Math.sqrt(mvx * mvx + mvy * mvy);
-    var nx = speed > 0 ? mvx / speed : 0;
-    var ny = speed > 0 ? mvy / speed : 0;
-    var mag = Math.min(speed / Math.max(w, h) * 8, 0.08);
-    gl.uniform2f(gl.getUniformLocation(simProg, 'u_vel'), nx * mag, -ny * mag);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-
-    simCurr = writeIdx;
-
-    // display pass
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.viewport(0, 0, w, h);
-    gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.useProgram(dispProg);
-    bindQuad(dispProg);
-
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, simPair[writeIdx].tex);
-    gl.uniform1i(gl.getUniformLocation(dispProg, 'u_paint'), 0);
-    gl.uniform1f(gl.getUniformLocation(dispProg, 'u_rgbShift'), 1.0);
-    gl.uniform1f(gl.getUniformLocation(dispProg, 'u_colorMult'), 5.0);
-    gl.uniform1f(gl.getUniformLocation(dispProg, 'u_shade'), 1.25);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    simulate(dt);
+    render();
   }
 
   requestAnimationFrame(tick);
