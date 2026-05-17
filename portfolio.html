@@ -155,7 +155,7 @@
         </div>
     </div>
 
-    <script src="cursor.js"></script>
+    <script src="portfolio-webgl.js"></script>
     <script>
     (function () {
         'use strict';
@@ -238,6 +238,15 @@
             frames.style.transform = 'translate3d(' + (-s) + 'px,0,0) scale(' + scaleD + ')';
             var progress = SCROLL_RANGE > 0 ? s / SCROLL_RANGE : 0;
             tracker.style.transform = 'translateX(' + (progress * MINIMAP_TRAVEL) + 'px)';
+            // Expose scroll state for portfolio-webgl.js
+            window._pfState = {
+                pos:        s,
+                scaleD:     scaleD,
+                step:       STEP,
+                marginLeft: (window.innerWidth - frameEls[0].offsetWidth) / 2,
+                frameW:     frameEls[0].offsetWidth,
+                frameH:     frameEls[0].offsetHeight
+            };
         }
 
         // ── MOBILE: touch-driven, no window.scrollY ───────────────────────────
