@@ -235,13 +235,15 @@
   // ── mouse ─────────────────────────────────────────────────────────────────
 
   var isCoarse = window.matchMedia('(pointer: coarse)').matches;
-  var mx = w / 2, my = h / 2, pmx = w / 2, pmy = h / 2, mvx = 0, mvy = 0;
+  var mx = w / 2, my = h / 2, pmx = w / 2, pmy = h / 2;
+  // Accumulated velocity with momentum (lusion: vel *= 0.8 + delta * dt * 0.8)
+  var velX = 0, velY = 0;
+  var lastTickTime = performance.now();
 
   if (!isCoarse) {
     window.addEventListener('mousemove', function (e) {
       pmx = mx; pmy = my;
       mx = e.clientX; my = e.clientY;
-      mvx = mx - pmx; mvy = my - pmy;
     });
   }
 
@@ -306,6 +308,22 @@
   }
 
   function stepSim() {
+    var now = performance.now();
+    var dt  = Math.min((now - lastTickTime) / 1000, 0.05);
+    lastTickTime = now;
+
+    // Lusion: vel = vel * 0.8 + delta * dt * 0.8  (accelerationDissipation = 0.8)
+    var dx = (mx - pmx) / Math.max(w, h);
+    var dy = (my - pmy) / Math.max(w, h);
+    velX = velX * 0.8 + dx * dt * 0.8;
+    velY = velY * 0.8 + dy * dt * 0.8;
+
+    // Lusion radius: min(pixelDist, 100) / viewportH * simH
+    var pixelDist = Math.sqrt((mx - pmx) * (mx - pmx) + (my - pmy) * (my - pmy));
+    var radius = Math.min(pixelDist, 100) / h * simH;
+
+    pmx = mx; pmy = my;
+
     var readIdx  = simCurr;
     var writeIdx = 1 - simCurr;
 
@@ -319,19 +337,15 @@
     gl.bindTexture(gl.TEXTURE_2D, simPair[readIdx].tex);
     gl.uniform1i(u(simProg, 'u_prev'), 0);
     gl.uniform2f(u(simProg, 'u_texelSize'), 1 / simW, 1 / simH);
-    gl.uniform1f(u(simProg, 'u_pushStr'), 10);
+    gl.uniform1f(u(simProg, 'u_pushStr'), 25);
     gl.uniform3f(u(simProg, 'u_diss'), 0.985, 0.985, 0.5);
 
     var fromX = pmx / w * simW, fromY = (1 - pmy / h) * simH;
     var toX   = mx  / w * simW, toY   = (1 - my  / h) * simH;
-    gl.uniform4f(u(simProg, 'u_from'), fromX, fromY, 18, 1);
-    gl.uniform4f(u(simProg, 'u_to'),   toX,   toY,   18, 1);
+    gl.uniform4f(u(simProg, 'u_from'), fromX, fromY, radius, 1);
+    gl.uniform4f(u(simProg, 'u_to'),   toX,   toY,   radius, 1);
 
-    var speed = Math.sqrt(mvx * mvx + mvy * mvy);
-    var nx = speed > 0 ? mvx / speed : 0;
-    var ny = speed > 0 ? mvy / speed : 0;
-    var mag = Math.min(speed / Math.max(w, h) * 8, 0.08);
-    gl.uniform2f(u(simProg, 'u_vel'), nx * mag, -ny * mag);
+    gl.uniform2f(u(simProg, 'u_vel'), velX, -velY);
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     simCurr = writeIdx;
